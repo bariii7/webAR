@@ -573,6 +573,44 @@
       }, 5000);
     }
 
+    // Drag rotate component (touch/mouse) around Y axis
+    AFRAME.registerComponent('drag-rotate-y', {
+      schema: { speed: { type: 'number', default: 1 } },
+      init: function () {
+        this.isDragging = false;
+        this.prevX = 0;
+        const onDown = (e) => {
+          this.isDragging = true;
+          this.prevX = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) || 0;
+        };
+        const onMove = (e) => {
+          if (!this.isDragging) return;
+          const x = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) || 0;
+          const dx = x - this.prevX;
+          const rot = this.el.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
+          rot.y -= dx * this.data.speed * 0.2;
+          this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`);
+          this.prevX = x;
+        };
+        const onUp = () => { this.isDragging = false; };
+        window.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('touchmove', onMove, { passive: true });
+        window.addEventListener('touchend', onUp, { passive: true });
+        window.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.removeHandlers = () => {
+          window.removeEventListener('touchstart', onDown);
+          window.removeEventListener('touchmove', onMove);
+          window.removeEventListener('touchend', onUp);
+          window.removeEventListener('mousedown', onDown);
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+      },
+      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
+    });
+
     function handleTargetLost() {
       const curVid = getCurrentVideo();
       if (curVid) {
@@ -585,10 +623,12 @@
         audio.currentTime = 0;
         isAudioPlaying = false;
       }
-      ["videoPlane","extraImagePlane","model","fallbackCube"].forEach(name => {
+      ["videoPlane","extraImagePlane","model","fallbackCube","videoSphere"].forEach(name => {
         const el = document.querySelector(`#${name}${targetIndex}`);
         if (el) el.remove();
       });
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+      is3DVideoMode = false;
       dynamicTargetImg.style.display = "none";
       targetIndex = null;
       langMenu.style.display = "none";
@@ -649,7 +689,7 @@
       modelEl.setAttribute('position', '0 0 0');
       modelEl.setAttribute('scale', '0.01 0.01 0.01');
       modelEl.setAttribute('rotation', '0 0 0');
-      modelEl.setAttribute('touch-rotate', 'speed: 1');
+      modelEl.setAttribute('drag-rotate-y', 'speed: 1');
       modelEl.classList.add('raycastable');
       parent.appendChild(modelEl);
       currentModel = modelEl;
@@ -683,7 +723,7 @@
       sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: double');
       sphere.setAttribute('rotation', '0 0 0');
       sphere.setAttribute('position', '0 0 0');
-      sphere.setAttribute('touch-rotate', 'speed: 1');
+      sphere.setAttribute('drag-rotate-y', 'speed: 1');
       parent.appendChild(sphere);
       currentVideoSphere = sphere;
       is3DVideoMode = true;
@@ -728,6 +768,11 @@
         }
       } catch {}
       await requestCameraAndMotionPermission();
+      // Ensure only a single Video 3D button appears if duplicated accidentally
+      const video3dButtons = langMenu.querySelectorAll("button[data-lang='3dv']");
+      if (video3dButtons.length > 1) {
+        video3dButtons.forEach((btn, idx) => { if (idx > 0) btn.remove(); });
+      }
     });
   </script>
 </body>
