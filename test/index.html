@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+    a-scene {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    #langMenu {
+      position: fixed;
+      background-color: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      padding: 10px;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #langMenu button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #langMenu button:hover {
+      color: yellow;
+    }
+    .control-buttons {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: center;
+      z-index: 10;
+      pointer-events: auto;
+    }
+    .button-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+    }
+    .icon-button {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      box-shadow: none;
+      background-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .icon-button img {
+      width: 38px;
+      height: 38px;
+    }
+    .icon-button-2 {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background-color: transparent;
+      border: none;
+    }
+    .icon-button-2 img {
+      width: 120px;
+      height: 38px;
+    }
+    .business-card-button {
+      width: auto;
+      height: auto;
+    }
+    .top-logo {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+    .top-logo img {
+      max-height: 40px;
+      max-width: 200px;
+      height: auto;
+      width: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .icon-button[disabled], .icon-button-2[disabled] {
+      opacity: 0.4 !important;
+      pointer-events: none;
+    }
+    #scanning-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      background: transparent;
+      z-index: 2;
+    }
+    @media (min-aspect-ratio: 1/1) {
+      #scanning-overlay .inner {
+        width: 50vh;
+        height: 50vh;
+      }
+    }
+    @media (max-aspect-ratio: 1/1) {
+      #scanning-overlay .inner {
+        width: 80vw;
+        height: 80vw;
+      }
+    }
+    #scanning-overlay .inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background:
+        linear-gradient(to right, white 10px, transparent 10px) 0 0,
+        linear-gradient(to right, white 10px, transparent 10px) 0 100%,
+        linear-gradient(to left, white 10px, transparent 10px) 100% 0,
+        linear-gradient(to left, white 10px, transparent 10px) 100% 100%,
+        linear-gradient(to bottom, white 10px, transparent 10px) 0 0,
+        linear-gradient(to bottom, white 10px, transparent 10px) 100% 0,
+        linear-gradient(to top, white 10px, transparent 10px) 0 100%,
+        linear-gradient(to top, white 10px, transparent 10px) 100% 100%;
+      background-repeat: no-repeat;
+      background-size: 40px 40px;
+    }
+    #scanning-overlay.hidden {
+      display: none;
+    }
+    #scanning-overlay img {
+      opacity: 0.6;
+      width: 90%;
+      align-self: center;
+      display: none;
+    }
+    #scanning-overlay .inner .scanline {
+      position: absolute;
+      width: 100%;
+      height: 10px;
+      background: white;
+      animation: move 2s linear infinite;
+    }
+    @keyframes move {
+      0%, 100% { top: 0% }
+      50% { top: calc(100% - 10px) }
+    }
+    #scanning-overlay.hidden .scanline { animation: none !important; }
+    #playButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      display: none;
+    }
+    #playButton img {
+      width: 60px;
+      height: 60px;
+    }
+    #musicButton {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-logo">
+    <img src="../icons/logo.png" alt="Logo" />
+  </div>
+  <div class="control-buttons">
+    <div class="button-row">
+      <button class="icon-button" id="formButton">
+        <img src="../icons/avi.png" alt="Form">
+      </button>
+      <button class="icon-button" onclick="downloadCurrentVideo()">
+        <img src="../icons/dan.png" alt="Download">
+      </button>
+      <button class="icon-button-2 business-card-button" id="cardButton">
+        <img src="../icons/card.png" alt="Card">
+      </button>
+      <button class="icon-button" id="langButton">
+        <img src="../icons/lang.png" alt="Lang">
+      </button>
+    </div>
+  </div>
+  <div id="langMenu">
+    <button data-lang="en">English</button>
+    <button data-lang="fr">Français</button>
+    <button data-lang="de">Deutsch</button>
+    <button data-lang="es">Español</button>
+    <button data-lang="3d">3D Model</button>
+    <button data-lang="3dv">Video 3D</button>
+  </div>
+  <div id="scanning-overlay" class="">
+    <div class="inner">
+      <img id="dynamicTargetImg" alt="Target Image">
+      <div class="scanline"></div>
+    </div>
+  <div id="noVideoMsg" style="display:none"></div>
+  </div>
+  <button class="icon-button" id="playButton" style="display: none;">
+    <img src="../icons/play-icon.png" alt="Play Video">
+  </button>
+  <button class="icon-button" id="musicButton" style="display: none;">
+    <img src="../icons/music.png" alt="Music">
+  </button>
+  <audio id="audio" preload="auto" style="display:none"></audio>
+  <video id="sharedVideo" playsinline webkit-playsinline muted loop preload="metadata" crossorigin="anonymous" style="display:none"></video>
+      <a-scene
+    mindar-image="imageTargetSrc: target.mind; maxTrack: 1; uiLoading: false; uiScanning: false; filterMinCF: 0.001; filterBeta: 0.01; warmupTolerance: 2; missTolerance: 8;"
+    embedded
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+    loading-screen="enabled: false"
+  >
+
+    <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .raycastable;"></a-camera>
+    <a-entity id="dynamic-targets"></a-entity>
+    <a-light type="ambient" intensity="0.5"></a-light>
+    <a-light type="directional" intensity="0.5" position="1 1 1"></a-light>
+  </a-scene>
+  <script>
+    // استفاده از کامپوننت touch-rotate از CDN بارگذاری‌شده
+
+    // متغیرها
+    const MAX_TARGETS = 10;
+    const DEFAULT_LANG = "fr";
+    const VIDEO_EXTS = [".mp4", ".webm", ".mov"]; // prioritize mp4 first
+
+    function canPlayH264() {
+      const v = document.createElement('video');
+      return !!v.canPlayType && v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"').replace(/no/, '');
+    }
+
+    function orderExtensionsBySupport() {
+      const h264 = canPlayH264();
+      if (h264) return [".mp4", ".webm", ".mov"]; // stick with mp4 first
+      return [".webm", ".mp4", ".mov"]; // fallback
+    }
+    let video = null;
+    const sceneEl = document.querySelector("a-scene");
+    const dynamicContainer = document.getElementById("dynamic-targets");
+    let targetIndex = null;
+    let hasPlayedOnce = false;
+    let currentVideoPlane = null;
+    let currentModel = null;
+    let currentExtraImagePlane = null;
+    let currentVideoSphere = null;
+    let currentLang = DEFAULT_LANG;
+    let is3DVideoMode = false;
+    let isAudioPlaying = false;
+    let playToken = 0;
+    let businessLinks = [];
+    let formLinks = [];
+    const musicButton = document.getElementById("musicButton");
+    const playButton = document.getElementById("playButton");
+    const langButton = document.getElementById("langButton");
+    const langMenu = document.getElementById("langMenu");
+    const langButtons = langMenu.querySelectorAll("button");
+    const formBtn = document.querySelector("#formButton");
+    const cardBtn = document.querySelector("#cardButton");
+    const scanningOverlay = document.getElementById("scanning-overlay");
+    const dynamicTargetImg = document.getElementById("dynamicTargetImg");
+    const audio = document.querySelector("#audio");
+    const noVideoMsg = document.getElementById("noVideoMsg");
+    const sharedVideo = document.getElementById('sharedVideo');
+
+    // ایجاد ویدیوهای per target
+    for (let i = 0; i < MAX_TARGETS; i++) {
+      // Remove per-target hidden videos to reduce decode restarts
+      const entity = document.createElement("a-entity");
+      entity.setAttribute("id", `target${i}`);
+      entity.setAttribute("mindar-image-target", `targetIndex: ${i}`);
+      entity.addEventListener("targetFound", () => handleTargetFound(i));
+      entity.addEventListener("targetLost", handleTargetLost);
+      dynamicContainer.appendChild(entity);
+    }
+
+    function getVideoElement(idx) { return sharedVideo; }
+    function getCurrentVideo() { return (targetIndex === null) ? null : sharedVideo; }
+
+    function updatePlaneSize(vidEl, idx) {
+      const vPlane = document.querySelector(`#videoPlane${idx}`);
+      if (!vPlane) return;
+      const baseHeight = 1;
+      const scale = 1.3; // enlarge overall
+      const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
+      // extra boost for portrait videos
+      const portraitBoost = aspect < 1 ? 1.15 : 1.0;
+      const height = baseHeight * scale * portraitBoost;
+      const width = height * aspect;
+      vPlane.setAttribute("width", width);
+      vPlane.setAttribute("height", height);
+      vPlane.setAttribute("position", `0 0 0`);
+    }
+
+    function normalizeUrl(url) {
+      if (!url) return "";
+      url = url.trim();
+      if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+      return url;
+    }
+
+    async function fileExists(path) {
+      try { const res = await fetch(path, { method: "HEAD" }); return res.ok; }
+      catch { return false; }
+    }
+
+    async function showTargetContent(index, lang) {
+      const entity = document.querySelector(`#target${index}`);
+      let found = false;
+      const exts = orderExtensionsBySupport();
+      for (let ext of exts) {
+        const path = `video${index + 1}-${lang}${ext}`;
+        if (await fileExists(path)) {
+          await setVideoSrc(path, index);
+          const myToken = playToken;
+          // Preload likely next videos
+          setTimeout(() => {
+            const next = (index + 1) % MAX_TARGETS;
+            const preloadLink = document.createElement('link');
+            preloadLink.rel = 'preload';
+            preloadLink.as = 'video';
+            preloadLink.href = `video${next + 1}-${currentLang}${ext}`;
+            document.head.appendChild(preloadLink);
+          }, 0);
+          if (!document.querySelector(`#videoPlane${index}`)) {
+            currentVideoPlane = document.createElement("a-video");
+            currentVideoPlane.setAttribute("id", `videoPlane${index}`);
+            currentVideoPlane.setAttribute("src", `#sharedVideo`);
+            currentVideoPlane.setAttribute("position", "0 0 0");
+            currentVideoPlane.setAttribute("rotation", "0 0 0");
+            currentVideoPlane.setAttribute("visible", "false");
+            currentVideoPlane.setAttribute("material", "side: double");
+            currentVideoPlane.setAttribute("width", "1.6");
+            currentVideoPlane.setAttribute("height", "0.9");
+            currentVideoPlane.classList.add('raycastable');
+            entity.appendChild(currentVideoPlane);
+          } else {
+            currentVideoPlane = document.querySelector(`#videoPlane${index}`);
+            currentVideoPlane.setAttribute("visible", "false");
+            currentVideoPlane.classList.add('raycastable');
+          }
+          video = getVideoElement(index);
+          video.addEventListener("loadedmetadata", () => updatePlaneSize(video, index));
+          found = true;
+          noVideoMsg.style.display = "none";
+          musicButton.style.display = 'none';
+          if (!hasPlayedOnce) {
+            playButton.style.display = "block";
+                   } else {
+                          playButton.style.display = "none";
+               video.muted = true;
+               const onPlayingOnce = async () => {
+                 if (myToken !== playToken) { video.removeEventListener('playing', onPlayingOnce); return; }
+                 currentVideoPlane && currentVideoPlane.setAttribute("visible", "true");
+                 scanningOverlay.classList.add('hidden');
+                 scanningOverlay.style.display = 'none';
+                 if (hasPlayedOnce) video.muted = false;
+                 // auto music when normal video without audio
+                 if (!is3DVideoMode && !hasAudioTrack(video)) {
+                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; musicButton.style.display = 'none'; } catch {}
+                 }
+                 video.removeEventListener('playing', onPlayingOnce);
+               };
+               video.addEventListener('playing', onPlayingOnce);
+               video.play().catch(()=>{});
+             }
+          break;
+        }
+      }
+      if (!found) {
+        let curVid = getCurrentVideo();
+        if (curVid) {
+          try { curVid.pause(); } catch {}
+          curVid.removeAttribute('src');
+          curVid.load();
+        }
+        if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
+        noVideoMsg.textContent = "No video available in this language.";
+        noVideoMsg.style.display = "block";
+        playButton.style.display = "none";
+      }
+    }
+
+    async function setVideoSrc(path, idx) {
+      const vidEl = sharedVideo;
+      if (!vidEl) return;
+      try { vidEl.pause(); } catch {}
+      try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
+      const myToken = ++playToken;
+      vidEl.src = path;
+      vidEl.preload = 'auto';
+      vidEl.load();
+      const onCanPlay = () => {
+        if (myToken !== playToken) { vidEl.removeEventListener('canplay', onCanPlay); return; }
+        updatePlaneSize(vidEl, idx);
+        scanningOverlay.classList.add('hidden');
+        scanningOverlay.style.display = 'none';
+        if (targetIndex === idx && hasPlayedOnce) {
+          vidEl.muted = false;
+          vidEl.play().then(() => {
+            if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'true');
+            playButton.style.display = 'none';
+          }).catch(()=>{});
+        }
+        vidEl.removeEventListener('canplay', onCanPlay);
+      };
+      vidEl.addEventListener('canplay', onCanPlay);
+    }
+
+
+
+
+    musicButton.addEventListener("click", () => {
+      if (targetIndex === null) {
+        alert("Scan a target please");
+        return;
+      }
+      if (!isAudioPlaying) {
+        audio.src = `audio${targetIndex + 1}.mp3`;
+        audio.play().catch(err => {});
+        isAudioPlaying = true;
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+        isAudioPlaying = false;
+      }
+    });
+
+    langButton.addEventListener("click", () => {
+      langMenu.style.display = langMenu.style.display === "flex" ? "none" : "flex";
+      if (langMenu.style.display === "flex") {
+        const rect = langButton.getBoundingClientRect();
+        langMenu.style.left = `${rect.left - 55}px`;
+        langMenu.style.top = `${rect.top - 35 - langMenu.offsetHeight}px`;
+      }
+    });
+
+    langButtons.forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const lang = btn.getAttribute("data-lang");
+        if (targetIndex === null) {
+          alert("ابتدا یک تارگت را اسکن کنید");
+          return;
+        }
+        if (lang === "3d") {
+          is3DVideoMode = false;
+          await showModelIfExists(targetIndex);
+        } else if (lang === '3dv') {
+          await show3DVideoIfExists(targetIndex);
+        } else {
+          is3DVideoMode = false;
+          currentLang = lang;
+          await showTargetContent(targetIndex, lang);
+        }
+        langMenu.style.display = "none";
+        updateLinkButtons(targetIndex);
+      });
+    });
+
+    function updateLinkButtons(index) {
+      const formLink = formLinks[index] ? normalizeUrl(formLinks[index]) : "";
+      const cardLink = businessLinks[index] ? normalizeUrl(businessLinks[index]) : "";
+      formBtn.disabled = !formLink;
+      formBtn.style.opacity = formLink ? 1 : 0.4;
+      formBtn.onclick = formLink ? () => window.open(formLink, "_blank") : null;
+      cardBtn.disabled = !cardLink;
+      cardBtn.style.opacity = cardLink ? 1 : 0.4;
+      cardBtn.onclick = cardLink ? () => window.open(cardLink, "_blank") : null;
+    }
+
+    window.downloadCurrentVideo = function () {
+      const curVid = getCurrentVideo();
+      if (curVid && curVid.src) {
+        const link = document.createElement("a");
+        link.href = curVid.src;
+        link.download = curVid.src.split("/").pop();
+        link.click();
+      }
+    };
+
+
+
+
+
+    async function loadLinks() {
+      try {
+        const [businessText, formText] = await Promise.all([
+          fetch(`business_links.txt`).then(res=>res.text()),
+          fetch(`form_links.txt`).then(res=>res.text()),
+        ]);
+        try { businessLinks = JSON.parse(businessText); } catch { businessLinks = businessText.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+        try { formLinks = JSON.parse(formText); } catch { formLinks = formText.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); }
+      } catch (e) { businessLinks = []; formLinks = []; }
+    }
+
+    async function checkTargetFile() {
+      try {
+        const res = await fetch(`target.mind`, { method: "HEAD" });
+        if (!res.ok) throw new Error("Target.mind couldn't find");
+      } catch (err) {
+        alert(`The target file (target.mind) could not be found. Please make sure the file is in the correct path.`);
+        scanningOverlay.classList.add("hidden");
+      }
+    }
+
+    async function requestCameraPermission() {
+      // Let MindAR handle permission prompts on mobile to avoid double getUserMedia issues
+      return true;
+    }
+
+    async function startMindAR() {
+      return new Promise((resolve, reject) => {
+        try {
+          const scene = document.querySelector('a-scene');
+          if (!scene.hasLoaded) {
+            scene.addEventListener('loaded', () => resolve(true), { once: true });
+          } else {
+            resolve(true);
+          }
+        } catch (e) { reject(e); }
+      });
+    }
+
+    async function requestCameraAndMotionPermission() {
+      const cameraGranted = await requestCameraPermission();
+      // iOS 13+ motion permission (safari)
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+          await DeviceMotionEvent.requestPermission().catch(()=>{});
+        }
+      } catch {}
+      if (!cameraGranted) return;
+      try {
+        await startMindAR();
+      } catch (e) {}
+      // Fallback timeout: if nothing started in 5s, hide spinner and show message
+      setTimeout(() => {
+        const mindarSystem = document.querySelector('a-scene')?.systems?.['mindar-image-system'];
+        const isRunning = mindarSystem && mindarSystem.ui && mindarSystem.video;
+        if (!isRunning) {
+          scanningOverlay.classList.add('hidden');
+          noVideoMsg.textContent = 'مشکل در راه‌اندازی دوربین یا MindAR. لطفا صفحه را رفرش کنید.';
+          noVideoMsg.style.display = 'block';
+        }
+      }, 5000);
+    }
+
+    // Drag rotate component (touch/mouse) around Y axis
+    AFRAME.registerComponent('drag-rotate-y', {
+      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
+      init: function () {
+        this.isDragging = false;
+        this.prevX = 0;
+        this.prevY = 0;
+        const onDown = (e) => {
+          this.isDragging = true;
+          const t = (e.touches && e.touches[0]) || e;
+          this.prevX = t.clientX || 0;
+          this.prevY = t.clientY || 0;
+        };
+        const onMove = (e) => {
+          if (!this.isDragging) return;
+          const t = (e.touches && e.touches[0]) || e;
+          const x = t.clientX || 0;
+          const y = t.clientY || 0;
+          const dx = x - this.prevX;
+          const dy = y - this.prevY;
+          const rot = this.el.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
+          rot.y -= dx * this.data.speed * 0.2;
+          rot.x -= dy * this.data.pitch * 0.2;
+          // clamp pitch to avoid flipping
+          if (rot.x > 80) rot.x = 80;
+          if (rot.x < -80) rot.x = -80;
+          this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`);
+          this.prevX = x;
+          this.prevY = y;
+        };
+        const onUp = () => { this.isDragging = false; };
+        window.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('touchmove', onMove, { passive: true });
+        window.addEventListener('touchend', onUp, { passive: true });
+        window.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.removeHandlers = () => {
+          window.removeEventListener('touchstart', onDown);
+          window.removeEventListener('touchmove', onMove);
+          window.removeEventListener('touchend', onUp);
+          window.removeEventListener('mousedown', onDown);
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+      },
+      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
+    });
+
+    function handleTargetLost() {
+      playToken++;
+      const curVid = getCurrentVideo();
+      if (curVid) {
+        try { curVid.pause(); } catch {}
+        try { curVid.muted = true; } catch {}
+        try { curVid.currentTime = 0; } catch {}
+        try { curVid.removeAttribute('src'); curVid.load(); } catch {}
+      }
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+        audio.currentTime = 0;
+        isAudioPlaying = false;
+      }
+      ["videoPlane","extraImagePlane","model","fallbackCube","videoSphere"].forEach(name => {
+        const el = document.querySelector(`#${name}${targetIndex}`);
+        if (el) el.remove();
+      });
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+      is3DVideoMode = false;
+      dynamicTargetImg.style.display = "none";
+      targetIndex = null;
+      langMenu.style.display = "none";
+      musicButton.style.display = "none";
+      playButton.style.display = "none";
+      noVideoMsg.style.display = "none";
+      scanningOverlay.classList.remove("hidden");
+      scanningOverlay.style.display = "flex";
+      video = null;
+      currentVideoPlane = null;
+      currentExtraImagePlane = null;
+      currentModel = null;
+    }
+
+    async function handleTargetFound(foundIndex) {
+      targetIndex = parseInt(foundIndex);
+      dynamicTargetImg.style.display = "none";
+      scanningOverlay.classList.add("hidden");
+      scanningOverlay.style.display = "none";
+      await showTargetContent(targetIndex, currentLang);
+      updateLinkButtons(targetIndex);
+      musicButton.style.display = "block";
+    }
+
+    // Play button handler for first user gesture autoplay restrictions
+    playButton.addEventListener("click", async () => {
+      if (targetIndex === null) return;
+      const curVid = getCurrentVideo();
+      if (!curVid) return;
+      try { await curVid.play(); } catch {}
+      if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
+      curVid.muted = false;
+      hasPlayedOnce = true;
+      playButton.style.display = "none";
+    });
+
+    // Basic 3D model display if available
+    async function showModelIfExists(index) {
+      const parent = document.querySelector(`#target${index}`);
+      if (!parent) return;
+      if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+      const existing = document.querySelector(`#model${index}`);
+      if (existing) existing.remove();
+
+      // only .glb per request
+      const candidates = [
+        `model${index+1}.glb`,
+        `models/model${index+1}.glb`
+      ];
+      let url = null;
+      for (const c of candidates) { if (await fileExists(c)) { url = c; break; } }
+      if (!url) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
+
+      const modelEl = document.createElement('a-entity');
+      modelEl.setAttribute('id', `model${index}`);
+      modelEl.setAttribute('gltf-model', url);
+      modelEl.setAttribute('position', '0 0 0');
+      modelEl.setAttribute('scale', '0.01 0.01 0.01');
+      modelEl.setAttribute('rotation', '0 0 0');
+      modelEl.setAttribute('drag-rotate-y', 'speed: 1');
+      modelEl.classList.add('raycastable');
+      parent.appendChild(modelEl);
+      currentModel = modelEl;
+    }
+
+    async function show3DVideoIfExists(index) {
+      const parent = document.querySelector(`#target${index}`);
+      if (!parent) return;
+      // remove old
+      if (currentVideoPlane) currentVideoPlane.setAttribute('visible','false');
+      if (currentModel) { currentModel.remove(); currentModel = null; }
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+
+      const exts = orderExtensionsBySupport();
+      let foundUrl = null;
+      for (let ext of exts) {
+        const path = `video${index + 1}-3dv${ext}`;
+        if (await fileExists(path)) { foundUrl = path; break; }
+      }
+      if (!foundUrl) {
+        noVideoMsg.textContent = '3D Video not found';
+        noVideoMsg.style.display = 'block';
+        return;
+      }
+      await setVideoSrc(foundUrl, index);
+
+      const sphere = document.createElement('a-entity');
+      sphere.setAttribute('id', `videoSphere${index}`);
+      // inside-out sphere scaled small
+      sphere.setAttribute('geometry', 'primitive: sphere; radius: 0.01; segmentsWidth: 32; segmentsHeight: 24');
+      sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: double');
+      sphere.setAttribute('rotation', '0 0 0');
+      sphere.setAttribute('position', '0 0 0');
+      sphere.setAttribute('drag-rotate-y', 'speed: 1');
+      parent.appendChild(sphere);
+      currentVideoSphere = sphere;
+      is3DVideoMode = true;
+
+      // start music automatically for 3D video
+      try {
+        audio.src = `audio${index + 1}-3dv.mp3`;
+        await audio.play();
+        isAudioPlaying = true;
+      } catch {}
+    }
+
+    function hasAudioTrack(videoEl) {
+      try {
+        return videoEl.mozHasAudio || Boolean(videoEl.webkitAudioDecodedByteCount) || (videoEl.audioTracks && videoEl.audioTracks.length);
+      } catch { return false; }
+    }
+
+    window.addEventListener('load', async () => {
+      await checkTargetFile();
+      await loadLinks();
+      // Warm cache for first target default language if exists
+      try { fetch(`video1-${currentLang}.mp4`, { method: 'HEAD' }); } catch {}
+      // Ensure scene starts on mobile
+      const scene = document.querySelector('a-scene');
+      try { scene?.pause(); scene?.play(); } catch {}
+      // Hook MindAR lifecycle events
+      scene.addEventListener('arReady', () => {
+        // camera stream is ready
+        noVideoMsg.style.display = 'none';
+      }, { once: true });
+      scene.addEventListener('arError', () => {
+        scanningOverlay.classList.add('hidden');
+        noVideoMsg.textContent = 'AR قابل راه‌اندازی نیست (مجوز/سازگاری). صفحه را رفرش کنید یا مرورگر دیگری امتحان کنید.';
+        noVideoMsg.style.display = 'block';
+      }, { once: true });
+      // Explicitly start MindAR
+      try {
+        const mindarSystem = scene.systems && scene.systems['mindar-image-system'];
+        if (mindarSystem && typeof mindarSystem.start === 'function') {
+          await mindarSystem.start();
+        }
+      } catch {}
+      await requestCameraAndMotionPermission();
+      // Ensure only a single Video 3D button appears if duplicated accidentally
+      const video3dButtons = langMenu.querySelectorAll("button[data-lang='3dv']");
+      if (video3dButtons.length > 1) {
+        video3dButtons.forEach((btn, idx) => { if (idx > 0) btn.remove(); });
+      }
+    });
+  </script>
+</body>
+</html>
