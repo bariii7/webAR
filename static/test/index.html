@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
   <style>
@@ -233,31 +233,16 @@
   <button class="icon-button" id="musicButton" style="display: none;">
     <img src="/icons/music.png" alt="Music">
   </button>
-  <a-scene
+  <audio id="audio" preload="auto" style="display:none"></audio>
+      <a-scene
     mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: false;"
     embedded
     color-space="sRGB"
-    renderer="colorManagement: true, physicallyCorrectLights"
+    renderer="colorManagement: true; physicallyCorrectLights: true"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
   >
-    <a-assets>
-      <!-- keep a single placeholder video if needed by A-Frame, but we will create per-target video elements dynamically -->
-      <video id="myVideo" loop playsinline webkit-playsinline crossorigin="anonymous" style="display:none"></video>
-      <img id="videoThumbnail" src="thumbnail.jpg" alt="Thumbnail">
-      <a-asset-item id="model1" src="model1.glb"></a-asset-item>
-      <a-asset-item id="model2" src="model2.glb"></a-asset-item>
-      <a-asset-item id="model3" src="model3.glb"></a-asset-item>
-      <a-asset-item id="model4" src="model4.glb"></a-asset-item>
-      <a-asset-item id="model5" src="model5.glb"></a-asset-item>
-      <a-asset-item id="model6" src="model6.glb"></a-asset-item>
-      <a-asset-item id="model7" src="model7.glb"></a-asset-item>
-      <a-asset-item id="model8" src="model8.glb"></a-asset-item>
-      <a-asset-item id="model9" src="model9.glb"></a-asset-item>
-      <a-asset-item id="model10" src="model10.glb"></a-asset-item>
-      <audio id="audio" src="audio1.mp3" preload="auto"></audio>
-      <img id="extraImage" src="extra_image1.jpg" alt="Extra Image"></img>
-    </a-assets>
+
     <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000;"></a-camera>
     <a-entity id="dynamic-targets"></a-entity>
     <a-light type="ambient" intensity="0.5"></a-light>
@@ -566,14 +551,23 @@
     async function showModelIfExists(index) {
       const parent = document.querySelector(`#target${index}`);
       if (!parent) return;
-      // remove video plane if visible
       if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
       const existing = document.querySelector(`#model${index}`);
       if (existing) existing.remove();
-      const modelId = `#model${index+1}`;
+
+      const candidates = [
+        `model${index+1}.glb`,
+        `model${index+1}.gltf`,
+        `models/model${index+1}.glb`,
+        `models/model${index+1}.gltf`
+      ];
+      let url = null;
+      for (const c of candidates) { if (await fileExists(c)) { url = c; break; } }
+      if (!url) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
+
       const modelEl = document.createElement('a-entity');
       modelEl.setAttribute('id', `model${index}`);
-      modelEl.setAttribute('gltf-model', modelId);
+      modelEl.setAttribute('gltf-model', url);
       modelEl.setAttribute('position', '0 0 0');
       modelEl.setAttribute('scale', '0.5 0.5 0.5');
       modelEl.setAttribute('rotation', '0 0 0');
