@@ -283,6 +283,7 @@
     let currentLang = DEFAULT_LANG;
     let is3DVideoMode = false;
     let isAudioPlaying = false;
+    let playToken = 0;
     let businessLinks = [];
     let formLinks = [];
     const musicButton = document.getElementById("musicButton");
@@ -316,9 +317,11 @@
       const vPlane = document.querySelector(`#videoPlane${idx}`);
       if (!vPlane) return;
       const baseHeight = 1;
-      const scale = 1.3; // enlarge by 1.3x per request
+      const scale = 1.3; // enlarge overall
       const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
-      const height = baseHeight * scale;
+      // extra boost for portrait videos
+      const portraitBoost = aspect < 1 ? 1.15 : 1.0;
+      const height = baseHeight * scale * portraitBoost;
       const width = height * aspect;
       vPlane.setAttribute("width", width);
       vPlane.setAttribute("height", height);
@@ -345,6 +348,7 @@
         const path = `video${index + 1}-${lang}${ext}`;
         if (await fileExists(path)) {
           await setVideoSrc(path, index);
+          const myToken = playToken;
           // Preload likely next videos
           setTimeout(() => {
             const next = (index + 1) % MAX_TARGETS;
@@ -375,19 +379,21 @@
           video.addEventListener("loadedmetadata", () => updatePlaneSize(video, index));
           found = true;
           noVideoMsg.style.display = "none";
+          musicButton.style.display = 'none';
           if (!hasPlayedOnce) {
             playButton.style.display = "block";
                    } else {
                           playButton.style.display = "none";
                video.muted = true;
                const onPlayingOnce = async () => {
+                 if (myToken !== playToken) { video.removeEventListener('playing', onPlayingOnce); return; }
                  currentVideoPlane && currentVideoPlane.setAttribute("visible", "true");
                  scanningOverlay.classList.add('hidden');
                  scanningOverlay.style.display = 'none';
                  if (hasPlayedOnce) video.muted = false;
                  // auto music when normal video without audio
                  if (!is3DVideoMode && !hasAudioTrack(video)) {
-                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; } catch {}
+                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; musicButton.style.display = 'none'; } catch {}
                  }
                  video.removeEventListener('playing', onPlayingOnce);
                };
@@ -416,10 +422,12 @@
       if (!vidEl) return;
       try { vidEl.pause(); } catch {}
       try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
+      const myToken = ++playToken;
       vidEl.src = path;
       vidEl.preload = 'auto';
       vidEl.load();
       const onCanPlay = () => {
+        if (myToken !== playToken) { vidEl.removeEventListener('canplay', onCanPlay); return; }
         updatePlaneSize(vidEl, idx);
         scanningOverlay.classList.add('hidden');
         scanningOverlay.style.display = 'none';
@@ -575,22 +583,33 @@
 
     // Drag rotate component (touch/mouse) around Y axis
     AFRAME.registerComponent('drag-rotate-y', {
-      schema: { speed: { type: 'number', default: 1 } },
+      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
       init: function () {
         this.isDragging = false;
         this.prevX = 0;
+        this.prevY = 0;
         const onDown = (e) => {
           this.isDragging = true;
-          this.prevX = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) || 0;
+          const t = (e.touches && e.touches[0]) || e;
+          this.prevX = t.clientX || 0;
+          this.prevY = t.clientY || 0;
         };
         const onMove = (e) => {
           if (!this.isDragging) return;
-          const x = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) || 0;
+          const t = (e.touches && e.touches[0]) || e;
+          const x = t.clientX || 0;
+          const y = t.clientY || 0;
           const dx = x - this.prevX;
+          const dy = y - this.prevY;
           const rot = this.el.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
           rot.y -= dx * this.data.speed * 0.2;
+          rot.x -= dy * this.data.pitch * 0.2;
+          // clamp pitch to avoid flipping
+          if (rot.x > 80) rot.x = 80;
+          if (rot.x < -80) rot.x = -80;
           this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`);
           this.prevX = x;
+          this.prevY = y;
         };
         const onUp = () => { this.isDragging = false; };
         window.addEventListener('touchstart', onDown, { passive: true });
@@ -612,14 +631,17 @@
     });
 
     function handleTargetLost() {
+      playToken++;
       const curVid = getCurrentVideo();
       if (curVid) {
         try { curVid.pause(); } catch {}
         try { curVid.muted = true; } catch {}
-        try { curVid.src = ''; curVid.load(); } catch {}
+        try { curVid.currentTime = 0; } catch {}
+        try { curVid.removeAttribute('src'); curVid.load(); } catch {}
       }
       if (audio) {
         audio.pause();
+        audio.src = '';
         audio.currentTime = 0;
         isAudioPlaying = false;
       }
