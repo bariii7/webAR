@@ -168,15 +168,12 @@
       height: 10px;
       background: white;
       animation: move 2s linear infinite;
-      will-change: transform;
     }
     @keyframes move {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(calc(100% - 10px)); }
+      0%, 100% { top: 0% }
+      50% { top: calc(100% - 10px) }
     }
-    #scanning-overlay.hidden .scanline {
-      animation: none !important;
-    }
+    #scanning-overlay.hidden .scanline { animation: none !important; }
     #playButton {
       position: absolute;
       top: 50%;
@@ -241,7 +238,7 @@
   <audio id="audio" preload="auto" style="display:none"></audio>
   <video id="sharedVideo" playsinline webkit-playsinline muted loop preload="metadata" crossorigin="anonymous" style="display:none"></video>
       <a-scene
-    mindar-image="imageTargetSrc: target.mind; maxTrack: 1; uiLoading: false; uiScanning: false;"
+    mindar-image="imageTargetSrc: target.mind; maxTrack: 1; uiLoading: false; uiScanning: false; filterMinCF: 0.001; filterBeta: 0.01; warmupTolerance: 2; missTolerance: 8;"
     embedded
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true"
@@ -315,16 +312,10 @@
     function updatePlaneSize(vidEl, idx) {
       const vPlane = document.querySelector(`#videoPlane${idx}`);
       if (!vPlane) return;
-      const defaultHeight = 1;
-      const maxWidth = 1.6; // clamp to avoid huge resizes
+      const fixedHeight = 1; // keep natural aspect fully, no clamp
       const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
-      let width = defaultHeight * aspect;
-      let height = defaultHeight;
-      if (width > maxWidth) {
-        const scale = maxWidth / width;
-        width = maxWidth;
-        height = height * scale;
-      }
+      const width = fixedHeight * aspect;
+      const height = fixedHeight;
       vPlane.setAttribute("width", width);
       vPlane.setAttribute("height", height);
       vPlane.setAttribute("position", `0 0 0`);
