@@ -236,12 +236,13 @@
   </button>
   <audio id="audio" preload="auto" style="display:none"></audio>
       <a-scene
-    mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: false;"
+    mindar-image="imageTargetSrc: target.mind; maxTrack: 1; uiLoading: false; uiScanning: false;"
     embedded
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
+    loading-screen="enabled: false"
   >
 
     <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .raycastable;"></a-camera>
@@ -484,18 +485,45 @@
     }
 
     async function requestCameraPermission() {
-      try {
-        let cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        cameraStream.getTracks().forEach(t => t.stop());
-        return true;
-      } catch { scanningOverlay.classList.add("hidden"); return false; }
+      // Let MindAR handle permission prompts on mobile to avoid double getUserMedia issues
+      return true;
     }
 
-    async function startMindAR() { return true; }
+    async function startMindAR() {
+      return new Promise((resolve, reject) => {
+        try {
+          const scene = document.querySelector('a-scene');
+          if (!scene.hasLoaded) {
+            scene.addEventListener('loaded', () => resolve(true), { once: true });
+          } else {
+            resolve(true);
+          }
+        } catch (e) { reject(e); }
+      });
+    }
+
     async function requestCameraAndMotionPermission() {
       const cameraGranted = await requestCameraPermission();
+      // iOS 13+ motion permission (safari)
+      try {
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+          await DeviceMotionEvent.requestPermission().catch(()=>{});
+        }
+      } catch {}
       if (!cameraGranted) return;
-      await startMindAR();
+      try {
+        await startMindAR();
+      } catch (e) {}
+      // Fallback timeout: if nothing started in 5s, hide spinner and show message
+      setTimeout(() => {
+        const mindarSystem = document.querySelector('a-scene')?.systems?.['mindar-image-system'];
+        const isRunning = mindarSystem && mindarSystem.ui && mindarSystem.video;
+        if (!isRunning) {
+          scanningOverlay.classList.add('hidden');
+          noVideoMsg.textContent = 'مشکل در راه‌اندازی دوربین یا MindAR. لطفا صفحه را رفرش کنید.';
+          noVideoMsg.style.display = 'block';
+        }
+      }, 5000);
     }
 
     function handleTargetLost() {
@@ -582,6 +610,29 @@
     window.addEventListener('load', async () => {
       await checkTargetFile();
       await loadLinks();
+      // Ensure scene starts on mobile
+      const scene = document.querySelector('a-scene');
+      try { scene?.pause(); scene?.play(); } catch {}
+
+      // Hook MindAR lifecycle events
+      scene.addEventListener('arReady', () => {
+        // camera stream is ready
+        noVideoMsg.style.display = 'none';
+      }, { once: true });
+      scene.addEventListener('arError', () => {
+        scanningOverlay.classList.add('hidden');
+        noVideoMsg.textContent = 'AR قابل راه‌اندازی نیست (مجوز/سازگاری). صفحه را رفرش کنید یا مرورگر دیگری امتحان کنید.';
+        noVideoMsg.style.display = 'block';
+      }, { once: true });
+
+      // Explicitly start MindAR
+      try {
+        const mindarSystem = scene.systems && scene.systems['mindar-image-system'];
+        if (mindarSystem && typeof mindarSystem.start === 'function') {
+          await mindarSystem.start();
+        }
+      } catch {}
+
       await requestCameraAndMotionPermission();
     });
   </script>
