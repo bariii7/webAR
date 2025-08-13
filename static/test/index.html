@@ -221,6 +221,7 @@
     <button data-lang="de">Deutsch</button>
     <button data-lang="es">Español</button>
     <button data-lang="3d">3D Model</button>
+    <button data-lang="3dv">Video 3D</button>
   </div>
   <div id="scanning-overlay" class="">
     <div class="inner">
@@ -278,7 +279,9 @@
     let currentVideoPlane = null;
     let currentModel = null;
     let currentExtraImagePlane = null;
+    let currentVideoSphere = null;
     let currentLang = DEFAULT_LANG;
+    let is3DVideoMode = false;
     let isAudioPlaying = false;
     let businessLinks = [];
     let formLinks = [];
@@ -376,11 +379,15 @@
                    } else {
                           playButton.style.display = "none";
                video.muted = true;
-               const onPlayingOnce = () => {
-                 currentVideoPlane.setAttribute("visible", "true");
+               const onPlayingOnce = async () => {
+                 currentVideoPlane && currentVideoPlane.setAttribute("visible", "true");
                  scanningOverlay.classList.add('hidden');
                  scanningOverlay.style.display = 'none';
                  if (hasPlayedOnce) video.muted = false;
+                 // auto music when normal video without audio
+                 if (!is3DVideoMode && !hasAudioTrack(video)) {
+                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; } catch {}
+                 }
                  video.removeEventListener('playing', onPlayingOnce);
                };
                video.addEventListener('playing', onPlayingOnce);
@@ -463,8 +470,12 @@
           return;
         }
         if (lang === "3d") {
+          is3DVideoMode = false;
           await showModelIfExists(targetIndex);
+        } else if (lang === '3dv') {
+          await show3DVideoIfExists(targetIndex);
         } else {
+          is3DVideoMode = false;
           currentLang = lang;
           await showTargetContent(targetIndex, lang);
         }
@@ -641,6 +652,52 @@
       modelEl.classList.add('raycastable');
       parent.appendChild(modelEl);
       currentModel = modelEl;
+    }
+
+    async function show3DVideoIfExists(index) {
+      const parent = document.querySelector(`#target${index}`);
+      if (!parent) return;
+      // remove old
+      if (currentVideoPlane) currentVideoPlane.setAttribute('visible','false');
+      if (currentModel) { currentModel.remove(); currentModel = null; }
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+
+      const exts = orderExtensionsBySupport();
+      let foundUrl = null;
+      for (let ext of exts) {
+        const path = `video${index + 1}-3dv${ext}`;
+        if (await fileExists(path)) { foundUrl = path; break; }
+      }
+      if (!foundUrl) {
+        noVideoMsg.textContent = '3D Video not found';
+        noVideoMsg.style.display = 'block';
+        return;
+      }
+      await setVideoSrc(foundUrl, index);
+
+      const sphere = document.createElement('a-entity');
+      sphere.setAttribute('id', `videoSphere${index}`);
+      // inside-out sphere: use sphere with negative scale or backface
+      sphere.setAttribute('geometry', 'primitive: sphere; radius: 0.8; segmentsWidth: 24; segmentsHeight: 18');
+      sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: back');
+      sphere.setAttribute('rotation', '0 0 0');
+      sphere.setAttribute('position', '0 0 0');
+      parent.appendChild(sphere);
+      currentVideoSphere = sphere;
+      is3DVideoMode = true;
+
+      // start music automatically for 3D video
+      try {
+        audio.src = `audio${index + 1}-3dv.mp3`;
+        await audio.play();
+        isAudioPlaying = true;
+      } catch {}
+    }
+
+    function hasAudioTrack(videoEl) {
+      try {
+        return videoEl.mozHasAudio || Boolean(videoEl.webkitAudioDecodedByteCount) || (videoEl.audioTracks && videoEl.audioTracks.length);
+      } catch { return false; }
     }
 
     window.addEventListener('load', async () => {
