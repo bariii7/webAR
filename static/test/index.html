@@ -315,10 +315,11 @@
     function updatePlaneSize(vidEl, idx) {
       const vPlane = document.querySelector(`#videoPlane${idx}`);
       if (!vPlane) return;
-      const fixedHeight = 1; // keep natural aspect fully, no clamp
+      const baseHeight = 1;
+      const scale = 1.3; // enlarge by 1.3x per request
       const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
-      const width = fixedHeight * aspect;
-      const height = fixedHeight;
+      const height = baseHeight * scale;
+      const width = height * aspect;
       vPlane.setAttribute("width", width);
       vPlane.setAttribute("height", height);
       vPlane.setAttribute("position", `0 0 0`);
@@ -588,7 +589,7 @@
         const el = document.querySelector(`#${name}${targetIndex}`);
         if (el) el.remove();
       });
-      dynamicTargetImg.style.display = "block";
+      dynamicTargetImg.style.display = "none";
       targetIndex = null;
       langMenu.style.display = "none";
       musicButton.style.display = "none";
@@ -629,14 +630,14 @@
       const parent = document.querySelector(`#target${index}`);
       if (!parent) return;
       if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
       const existing = document.querySelector(`#model${index}`);
       if (existing) existing.remove();
 
+      // only .glb per request
       const candidates = [
         `model${index+1}.glb`,
-        `model${index+1}.gltf`,
-        `models/model${index+1}.glb`,
-        `models/model${index+1}.gltf`
+        `models/model${index+1}.glb`
       ];
       let url = null;
       for (const c of candidates) { if (await fileExists(c)) { url = c; break; } }
@@ -646,7 +647,7 @@
       modelEl.setAttribute('id', `model${index}`);
       modelEl.setAttribute('gltf-model', url);
       modelEl.setAttribute('position', '0 0 0');
-      modelEl.setAttribute('scale', '0.5 0.5 0.5');
+      modelEl.setAttribute('scale', '0.01 0.01 0.01');
       modelEl.setAttribute('rotation', '0 0 0');
       modelEl.setAttribute('touch-rotate', 'speed: 1');
       modelEl.classList.add('raycastable');
@@ -677,11 +678,12 @@
 
       const sphere = document.createElement('a-entity');
       sphere.setAttribute('id', `videoSphere${index}`);
-      // inside-out sphere: use sphere with negative scale or backface
-      sphere.setAttribute('geometry', 'primitive: sphere; radius: 0.8; segmentsWidth: 24; segmentsHeight: 18');
-      sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: back');
+      // inside-out sphere scaled small
+      sphere.setAttribute('geometry', 'primitive: sphere; radius: 0.01; segmentsWidth: 32; segmentsHeight: 24');
+      sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: double');
       sphere.setAttribute('rotation', '0 0 0');
       sphere.setAttribute('position', '0 0 0');
+      sphere.setAttribute('touch-rotate', 'speed: 1');
       parent.appendChild(sphere);
       currentVideoSphere = sphere;
       is3DVideoMode = true;
