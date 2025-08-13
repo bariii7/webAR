@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <script src="./aframe.min.js"></script>
+  <script src="./mindar-image-aframe.prod.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
+    a-scene {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+    #langMenu {
+      position: fixed;
+      background-color: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      padding: 10px;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #langMenu button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #langMenu button:hover {
+      color: yellow;
+    }
+    .control-buttons {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: center;
+      z-index: 10;
+      pointer-events: auto;
+    }
+    .button-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+    }
+    .icon-button {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      box-shadow: none;
+      background-color: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .icon-button img {
+      width: 38px;
+      height: 38px;
+    }
+    .icon-button-2 {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background-color: transparent;
+      border: none;
+    }
+    .icon-button-2 img {
+      width: 120px;
+      height: 38px;
+    }
+    .business-card-button {
+      width: auto;
+      height: auto;
+    }
+    .top-logo {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+    .top-logo img {
+      max-height: 40px;
+      height: auto;
+      width: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .icon-button[disabled], .icon-button-2[disabled] {
+      opacity: 0.4 !important;
+      pointer-events: none;
+    }
+    #scanning-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      background: transparent;
+      z-index: 2;
+    }
+    @media (min-aspect-ratio: 1/1) {
+      #scanning-overlay .inner {
+        width: 50vh;
+        height: 50vh;
+      }
+    }
+    @media (max-aspect-ratio: 1/1) {
+      #scanning-overlay .inner {
+        width: 80vw;
+        height: 80vw;
+      }
+    }
+    #scanning-overlay .inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background:
+        linear-gradient(to right, white 10px, transparent 10px) 0 0,
+        linear-gradient(to right, white 10px, transparent 10px) 0 100%,
+        linear-gradient(to left, white 10px, transparent 10px) 100% 0,
+        linear-gradient(to left, white 10px, transparent 10px) 100% 100%,
+        linear-gradient(to bottom, white 10px, transparent 10px) 0 0,
+        linear-gradient(to bottom, white 10px, transparent 10px) 100% 0,
+        linear-gradient(to top, white 10px, transparent 10px) 0 100%,
+        linear-gradient(to top, white 10px, transparent 10px) 100% 100%;
+      background-repeat: no-repeat;
+      background-size: 40px 40px;
+    }
+    #scanning-overlay.hidden {
+      display: none;
+    }
+    #scanning-overlay img {
+      opacity: 0.6;
+      width: 90%;
+      align-self: center;
+      display: none;
+    }
+    #scanning-overlay .inner .scanline {
+      position: absolute;
+      width: 100%;
+      height: 10px;
+      background: white;
+      animation: move 2s linear infinite;
+    }
+    @keyframes move {
+      0%, 100% { top: 0% }
+      50% { top: calc(100% - 10px) }
+    }
+    #playButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      display: none;
+    }
+    #playButton img {
+      width: 60px;
+      height: 60px;
+    }
+    #musicButton {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-logo">
+    <img src="logo.png" alt="Logo" />
+  </div>
+  <div class="control-buttons">
+    <div class="button-row">
+      <button class="icon-button" id="formButton">
+        <img src="avi.png" alt="Form">
+      </button>
+      <button class="icon-button" onclick="downloadCurrentVideo()">
+        <img src="dan.png" alt="Download">
+      </button>
+      <button class="icon-button-2 business-card-button" id="cardButton">
+        <img src="card.png" alt="Card">
+      </button>
+      <button class="icon-button" id="langButton">
+        <img src="lang.png" alt="Lang">
+      </button>
+    </div>
+  </div>
+  <div id="langMenu">
+    <button data-lang="en">English</button>
+    <button data-lang="fr">Français</button>
+    <button data-lang="de">Deutsch</button>
+    <button data-lang="es">Español</button>
+    <button data-lang="3d">3D Model</button>
+  </div>
+  <div id="scanning-overlay" class="">
+    <div class="inner">
+      <img id="dynamicTargetImg" alt="Target Image">
+      <div class="scanline"></div>
+    </div>
+  </div>
+  <button class="icon-button" id="playButton" style="display: none;">
+    <img src="play-icon.png" alt="Play Video">
+  </button>
+  <button class="icon-button" id="musicButton" style="display: none;">
+    <img src="music.png" alt="Music">
+  </button>
+  <a-scene
+    mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; uiScanning: #scanning-overlay;"
+    embedded
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+    <a-assets>
+      <video id="myVideo" loop playsinline webkit-playsinline crossorigin="anonymous"></video>
+      <img id="videoThumbnail" src="thumbnail.jpg" alt="Thumbnail">
+      <a-asset-item id="model1" src="model1.glb"></a-asset-item>
+      <a-asset-item id="model2" src="model2.glb"></a-asset-item>
+      <a-asset-item id="model3" src="model3.glb"></a-asset-item>
+      <a-asset-item id="model4" src="model4.glb"></a-asset-item>
+      <a-asset-item id="model5" src="model5.glb"></a-asset-item>
+      <a-asset-item id="model6" src="model6.glb"></a-asset-item>
+      <a-asset-item id="model7" src="model7.glb"></a-asset-item>
+      <a-asset-item id="model8" src="model8.glb"></a-asset-item>
+      <a-asset-item id="model9" src="model9.glb"></a-asset-item>
+      <a-asset-item id="model10" src="model10.glb"></a-asset-item>
+      <audio id="audio" src="audio1.mp3" preload="auto"></audio>
+      <img id="extraImage" src="extra_image1.jpg" alt="Extra Image"></img>
+    </a-assets>
+    <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000;"></a-camera>
+    <a-entity id="dynamic-targets"></a-entity>
+    <a-light type="ambient" intensity="0.5"></a-light>
+    <a-light type="directional" intensity="0.5" position="1 1 1"></a-light>
+  </a-scene>
+  <script>
+    // Register touch-rotate component
+    AFRAME.registerComponent('touch-rotate', {
+      schema: {
+        speed: { type: 'number', default: 1 }
+      },
+      init: function () {
+        this.isDragging = false;
+        this.previousX = 0;
+        this.rotationY = 0;
+
+        this.el.addEventListener('touchstart', (evt) => {
+          this.isDragging = true;
+          this.previousX = evt.touches[0].clientX;
+        });
+
+        this.el.addEventListener('touchmove', (evt) => {
+          if (!this.isDragging) return;
+          const currentX = evt.touches[0].clientX;
+          const deltaX = currentX - this.previousX;
+          this.rotationY -= deltaX * this.data.speed * 0.1;
+          this.el.setAttribute('rotation', `0 ${this.rotationY} 0`);
+          this.previousX = currentX;
+        });
+
+        this.el.addEventListener('touchend', () => {
+          this.isDragging = false;
+        });
+      }
+    });
+
+    (async function () {
+      const MAX_TARGETS = 10;
+      const DEFAULT_LANG = "fr";
+      const VIDEO_EXTS = [".mp4", ".webm", ".mov"];
+      const video = document.querySelector("#myVideo");
+      const sceneEl = document.querySelector("a-scene");
+      const dynamicContainer = document.getElementById("dynamic-targets");
+      const langButton = document.getElementById("langButton");
+      const langMenu = document.getElementById("langMenu");
+      const langButtons = langMenu.querySelectorAll("button");
+      const formBtn = document.querySelector("#formButton");
+      const cardBtn = document.querySelector("#cardButton");
+      const musicButton = document.querySelector("#musicButton");
+      const playButton = document.querySelector("#playButton");
+      const scanningOverlay = document.getElementById("scanning-overlay");
+      const dynamicTargetImg = document.getElementById("dynamicTargetImg");
+      const audio = document.querySelector("#audio");
+
+      let targetIndex = null;
+      let currentVideoPlane = null;
+      let currentRightPlane = null;
+      let currentThumbPlane = null;
+      let currentModel = null;
+      let currentExtraImagePlane = null;
+      let currentLang = DEFAULT_LANG;
+      let businessLinks = [];
+      let formLinks = [];
+      let isAudioPlaying = false;
+      let cameraStream = null;
+
+      async function requestCameraPermission() {
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          console.log("دسترسی به دوربین اعطا شد");
+          const videoElement = document.createElement('video');
+          videoElement.srcObject = cameraStream;
+          videoElement.play();
+          return true;
+        } catch (err) {
+          console.error("خطا در دسترسی به دوربین:", err);
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            alert("دسترسی به دوربین رد شد. لطفاً در تنظیمات مرورگر (Settings > Safari > Camera) دسترسی به دوربین را فعال کنید و صفحه را رفرش کنید.");
+          } else if (err.name === 'NotFoundError') {
+            alert("دوربین در دستگاه یافت نشد. لطفاً مطمئن شوید که دوربین متصل است.");
+          }
+          scanningOverlay.classList.add("hidden");
+          return false;
+        }
+      }
+
+      async function requestMotionPermission() {
+        try {
+          if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') {
+              alert("دسترسی به حسگرهای دستگاه رد شد. لطفاً در تنظیمات Safari (Settings > Safari > Motion & Orientation Access) دسترسی را فعال کنید و صفحه را رفرش کنید.");
+              return false;
+            }
+            console.log("دسترسی به حسگرها اعطا شد");
+            return true;
+          } else {
+            console.log("حسگرهای دستگاه پشتیبانی نمی‌شوند یا نیازی به مجوز ندارند");
+            return true;
+          }
+        } catch (err) {
+          console.error("خطا در دسترسی به حسگرها:", err);
+          alert("خطا در دسترسی به حسگرهای دستگاه. لطفاً در تنظیمات Safari (Settings > Safari > Motion & Orientation Access) دسترسی را فعال کنید و صفحه را رفرش کنید.");
+          return false;
+        }
+      }
+
+      async function startMindAR() {
+        try {
+          if (typeof window.MINDAR === 'undefined' || !window.MINDAR.IMAGE) {
+            console.warn("MindAR library not loaded correctly");
+            scanningOverlay.classList.add("hidden");
+            return false;
+          }
+          const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+            container: sceneEl,
+            imageTargetSrc: `target.mind`,
+            uiLoading: 'no',
+            uiScanning: '#scanning-overlay'
+          });
+          await mindarThree.start();
+          sceneEl.appendChild(mindarThree.renderer.domElement);
+          scanningOverlay.classList.remove("hidden");
+          return true;
+        } catch (err) {
+          console.error("خطا در راه‌اندازی MindAR:", err);
+          scanningOverlay.classList.add("hidden");
+          return false;
+        }
+      }
+
+      async function requestCameraAndMotionPermission() {
+        const cameraGranted = await requestCameraPermission();
+        if (!cameraGranted) return;
+
+        const motionGranted = await requestMotionPermission();
+        if (!motionGranted) {
+          await startMindAR();
+          return;
+        }
+
+        await startMindAR();
+      }
+
+      async function checkTargetFile() {
+        try {
+          const res = await fetch(`target.mind`, { method: "HEAD" });
+          if (!res.ok) {
+            throw new Error("فایل target.mind پیدا نشد");
+          }
+        } catch (err) {
+          console.error(err);
+          alert(`فایل هدف (target.mind) پیدا نشد. لطفاً مطمئن شوید که فایل در مسیر درست قرار دارد.`);
+          scanningOverlay.classList.add("hidden");
+        }
+      }
+
+      async function checkModelFile(modelPath) {
+        try {
+          const glbRes = await fetch(modelPath, { method: "HEAD" });
+          if (!glbRes.ok) {
+            throw new Error(`فایل ${modelPath} پیدا نشد`);
+          }
+          console.log(`فایل ${modelPath} یافت شد`);
+          return true;
+        } catch (err) {
+          console.error(err);
+          alert(`خطا در بررسی فایل مدل: ${err.message}`);
+          return false;
+        }
+      }
+
+      function normalizeUrl(url) {
+        if (!url) return "";
+        url = url.trim();
+        if (!/^https?:\/\//i.test(url)) {
+          url = "https://" + url;
+        }
+        return url;
+      }
+
+      async function loadLinks() {
+        try {
+          const [businessText, formText] = await Promise.all([
+            fetch(`business_links.txt`).then((res) => res.text()),
+            fetch(`form_links.txt`).then((res) => res.text()),
+          ]);
+          businessLinks = JSON.parse(businessText);
+          formLinks = JSON.parse(formText);
+        } catch (e) {
+          console.error("خطا در بارگذاری لینک‌ها:", e);
+          businessLinks = [];
+          formLinks = [];
+        }
+      }
+
+      function updateLinkButtons(index) {
+        const formLink = formLinks[index] ? normalizeUrl(formLinks[index]) : "";
+        const cardLink = businessLinks[index] ? normalizeUrl(businessLinks[index]) : "";
+        formBtn.disabled = !formLink;
+        formBtn.style.opacity = formLink ? 1 : 0.4;
+        formBtn.onclick = formLink ? () => window.open(formLink, "_blank") : null;
+        cardBtn.disabled = !cardLink;
+        cardBtn.style.opacity = cardLink ? 1 : 0.4;
+        cardBtn.onclick = cardLink ? () => window.open(cardLink, "_blank") : null;
+        musicButton.style.display = (currentLang === "3d" || ["en", "fr", "de", "es"].includes(currentLang)) ? "block" : "none";
+      }
+
+      for (let i = 0; i < MAX_TARGETS; i++) {
+        const entity = document.createElement("a-entity");
+        entity.setAttribute("id", `target${i}`);
+        entity.setAttribute("mindar-image-target", `targetIndex: ${i}`);
+
+        const thumb = document.createElement("a-image");
+        thumb.setAttribute("id", `thumbPlane${i}`);
+        thumb.setAttribute("src", "#videoThumbnail");
+        thumb.setAttribute("position", "0 0 0");
+        thumb.setAttribute("visible", "false");
+
+        const videoPlane = document.createElement("a-video");
+        videoPlane.setAttribute("id", `videoPlane${i}`);
+        videoPlane.setAttribute("src", "#myVideo");
+        videoPlane.setAttribute("position", "0 0 0");
+        videoPlane.setAttribute("visible", "false");
+
+        const videoPlaneRight = document.createElement("a-video");
+        videoPlaneRight.setAttribute("id", `videoPlaneRight${i}`);
+        videoPlaneRight.setAttribute("src", "#myVideo");
+        videoPlaneRight.setAttribute("position", "0 0 0");
+        videoPlaneRight.setAttribute("visible", "false");
+
+        const model = document.createElement("a-entity");
+        model.setAttribute("id", `model${i}`);
+        model.setAttribute("gltf-model", `#model${i + 1}`);
+        model.setAttribute("position", "0 0 0.5");
+        model.setAttribute("scale", "0.01 0.01 0.01");
+        model.setAttribute("visible", "false");
+        model.setAttribute("touch-rotate", "speed: 1");
+
+        const fallbackCube = document.createElement("a-box");
+        fallbackCube.setAttribute("id", `fallbackCube${i}`);
+        fallbackCube.setAttribute("position", "0 0 0.5");
+        fallbackCube.setAttribute("scale", "0.5 0.5 0.5");
+        fallbackCube.setAttribute("material", "color: red");
+        fallbackCube.setAttribute("visible", "false");
+        fallbackCube.setAttribute("animation", "property: rotation; to: 0 360 0; loop: true; dur: 5000; easing: linear");
+
+        const extraImagePlane = document.createElement("a-image");
+        extraImagePlane.setAttribute("id", `extraImagePlane${i}`);
+        extraImagePlane.setAttribute("src", `#extraImage`);
+        extraImagePlane.setAttribute("position", "0 0 0");
+        extraImagePlane.setAttribute("visible", "false");
+
+        entity.appendChild(thumb);
+        entity.appendChild(videoPlane);
+        entity.appendChild(videoPlaneRight);
+        entity.appendChild(model);
+        entity.appendChild(fallbackCube);
+        entity.appendChild(extraImagePlane);
+        dynamicContainer.appendChild(entity);
+      }
+
+      video.addEventListener("loadedmetadata", () => {
+        const aspect = video.videoWidth / video.videoHeight;
+        if (currentVideoPlane && currentThumbPlane && currentExtraImagePlane) {
+          const width = 1.7;
+          const height = width / aspect;
+          currentVideoPlane.setAttribute("width", width);
+          currentVideoPlane.setAttribute("height", height);
+          currentRightPlane.setAttribute("width", width);
+          currentRightPlane.setAttribute("height", height);
+          currentThumbPlane.setAttribute("width", width);
+          currentThumbPlane.setAttribute("height", height);
+          currentExtraImagePlane.setAttribute("width", width);
+          currentExtraImagePlane.setAttribute("height", height);
+        }
+      });
+
+      sceneEl.addEventListener("targetFound", async (e) => {
+        const newTargetIndex = e.target.getAttribute("mindar-image-target").targetIndex;
+        if (targetIndex !== null && targetIndex !== newTargetIndex) {
+          if (currentVideoPlane) {
+            video.pause();
+            video.src = "";
+            currentVideoPlane.setAttribute("visible", "false");
+            currentRightPlane.setAttribute("visible", "false");
+            if (currentModel) currentModel.setAttribute("visible", "false");
+            if (currentExtraImagePlane) currentExtraImagePlane.setAttribute("visible", "false");
+            if (audio && isAudioPlaying) {
+              audio.pause();
+              audio.currentTime = 0;
+              isAudioPlaying = false;
+            }
+          }
+        }
+        targetIndex = newTargetIndex;
+        currentVideoPlane = document.querySelector(`#videoPlane${targetIndex}`);
+        currentRightPlane = document.querySelector(`#videoPlaneRight${targetIndex}`);
+        currentThumbPlane = document.querySelector(`#thumbPlane${targetIndex}`);
+        currentModel = document.querySelector(`#model${targetIndex}`);
+        currentExtraImagePlane = document.querySelector(`#extraImagePlane${targetIndex}`);
+        dynamicTargetImg.style.display = "block";
+        dynamicTargetImg.src = `image${targetIndex + 1}.jpg`;
+        scanningOverlay.classList.add("hidden");
+        updateLinkButtons(targetIndex);
+
+        if (currentLang !== "3d") {
+          let found = false;
+          for (let ext of VIDEO_EXTS) {
+            const path = `video${parseInt(targetIndex) + 1}-${currentLang}${ext}`;
+            try {
+              const res = await fetch(path, { method: "HEAD" });
+              if (res.ok) {
+                await setVideoSrc(path);
+                currentVideoPlane.setAttribute("visible", "true");
+                currentRightPlane.setAttribute("visible", "true");
+                currentModel.setAttribute("visible", "false");
+                currentExtraImagePlane.setAttribute("visible", "false");
+                playButton.style.display = "block";
+                found = true;
+                break;
+              }
+            } catch {}
+          }
+          if (!found) {
+            const extraImagePath = `extra_image${targetIndex + 1}.jpg`;
+            try {
+              const res = await fetch(extraImagePath, { method: "HEAD" });
+              if (res.ok) {
+                currentExtraImagePlane.setAttribute("src", extraImagePath);
+                currentExtraImagePlane.setAttribute("visible", "true");
+                currentVideoPlane.setAttribute("visible", "false");
+                currentRightPlane.setAttribute("visible", "false");
+                currentModel.setAttribute("visible", "false");
+                playButton.style.display = "none";
+              } else {
+                alert("محتوایی برای نمایش یافت نشد.");
+              }
+            } catch {
+              alert("محتوایی برای نمایش یافت نشد.");
+            }
+          }
+        }
+      });
+
+      sceneEl.addEventListener("targetLost", () => {
+        video.pause();
+        if (currentVideoPlane && currentThumbPlane && currentModel && currentExtraImagePlane) {
+          currentVideoPlane.setAttribute("visible", "false");
+          currentRightPlane.setAttribute("visible", "false");
+          currentThumbPlane.setAttribute("visible", "false");
+          currentModel.setAttribute("visible", "false");
+          currentExtraImagePlane.setAttribute("visible", "false");
+          if (audio && isAudioPlaying) {
+            audio.pause();
+            audio.currentTime = 0;
+            isAudioPlaying = false;
+          }
+          dynamicTargetImg.style.display = "none";
+        }
+        targetIndex = null;
+        langMenu.style.display = "none";
+        musicButton.style.display = "none";
+        playButton.style.display = "none";
+        scanningOverlay.classList.remove("hidden");
+      });
+
+      langButton.addEventListener("click", () => {
+        langMenu.style.display = langMenu.style.display === "flex" ? "none" : "flex";
+        if (langMenu.style.display === "flex") {
+          const rect = langButton.getBoundingClientRect();
+          langMenu.style.left = `${rect.left - 80}px`;
+          langMenu.style.top = `${rect.top - 100 - langMenu.offsetHeight}px`;
+        }
+      });
+
+      langButtons.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const lang = btn.getAttribute("data-lang");
+          if (targetIndex === null) {
+            alert("ابتدا یک تارگت را انتخاب کنید.");
+            return;
+          }
+          if (lang === "3d") {
+            const modelId = `#model${targetIndex + 1}`;
+            const modelPath = `model${targetIndex + 1}.glb`;
+            const fallbackCube = document.querySelector(`#fallbackCube${targetIndex}`);
+            try {
+              const modelExists = await checkModelFile(modelPath);
+              if (!modelExists) {
+                console.warn(`نمایش مکعب فال‌بک به جای ${modelPath}`);
+                video.pause();
+                playButton.style.display = "none";
+                currentVideoPlane.setAttribute("visible", "false");
+                currentRightPlane.setAttribute("visible", "false");
+                currentExtraImagePlane.setAttribute("visible", "false");
+                currentModel.setAttribute("visible", "false");
+                fallbackCube.setAttribute("visible", "true");
+                alert(`فایل ${modelPath} یافت نشد. یک مکعب قرمز نمایش داده می‌شود.`);
+                currentLang = "3d";
+                return;
+              }
+
+              video.pause();
+              playButton.style.display = "none";
+              currentVideoPlane.setAttribute("visible", "false");
+              currentRightPlane.setAttribute("visible", "false");
+              currentExtraImagePlane.setAttribute("visible", "false");
+              fallbackCube.setAttribute("visible", "false");
+
+              currentModel.setAttribute("gltf-model", modelId);
+              currentModel.setAttribute("visible", "true");
+              console.log(`در حال بارگذاری مدل سه‌بعدی: ${modelId} از مسیر ${modelPath}`);
+
+              currentModel.addEventListener('model-loaded', () => {
+                console.log(`مدل ${modelId} با موفقیت بارگذاری شد`);
+                alert(`مدل ${modelPath} بارگذاری شد. با انگشت روی صفحه بکشید تا بچرخد.`);
+              }, { once: true });
+              currentModel.addEventListener('model-error', (e) => {
+                console.error(`خطا در بارگذاری مدل ${modelId}:`, e.detail);
+                alert(`خطا در بارگذاری مدل ${modelPath}. لطفاً کنسول مرورگر را بررسی کنید.`);
+                fallbackCube.setAttribute("visible", "true");
+              }, { once: true });
+
+              currentLang = "3d";
+            } catch (err) {
+              console.error(`خطا در لود مدل ${modelId}:`, err);
+              alert(`خطا در لود مدل سه‌بعدی ${modelPath}. لطفاً مطمئن شوید فایل GLB در مسیر درست است.`);
+              fallbackCube.setAttribute("visible", "true");
+            }
+          } else {
+            let found = false;
+            for (let ext of VIDEO_EXTS) {
+              const path = `video${parseInt(targetIndex) + 1}-${lang}${ext}`;
+              try {
+                const res = await fetch(path, { method: "HEAD" });
+                if (res.ok) {
+                  await setVideoSrc(path);
+                  currentLang = lang;
+                  currentVideoPlane.setAttribute("visible", "true");
+                  currentRightPlane.setAttribute("visible", "true");
+                  currentModel.setAttribute("visible", "false");
+                  currentExtraImagePlane.setAttribute("visible", "false");
+                  playButton.style.display = "block";
+                  found = true;
+                  break;
+                }
+              } catch {}
+            }
+            if (!found) {
+              const extraImagePath = `extra_image${targetIndex + 1}.jpg`;
+              try {
+                const res = await fetch(extraImagePath, { method: "HEAD" });
+                if (res.ok) {
+                  currentExtraImagePlane.setAttribute("src", extraImagePath);
+                  currentExtraImagePlane.setAttribute("visible", "true");
+                  currentVideoPlane.setAttribute("visible", "false");
+                  currentRightPlane.setAttribute("visible", "false");
+                  currentModel.setAttribute("visible", "false");
+                  playButton.style.display = "none";
+                } else {
+                  alert(`ویدیو برای زبان ${lang} یافت نشد.`);
+                }
+              } catch {
+                alert(`ویدیو برای زبان ${lang} یافت نشد.`);
+              }
+            }
+          }
+          langMenu.style.display = "none";
+          updateLinkButtons(targetIndex);
+        });
+      });
+
+      playButton.addEventListener("click", () => {
+        if (targetIndex !== null && video.src) {
+          video.play().catch(err => console.error("خطا در پخش ویدیو:", err));
+          playButton.style.display = "none";
+        }
+      });
+
+      musicButton.addEventListener("click", () => {
+        if (targetIndex === null) {
+          alert("ابتدا یک تارگت را انتخاب کنید.");
+          return;
+        }
+        if (!isAudioPlaying) {
+          audio.src = `audio${targetIndex + 1}.mp3`;
+          audio.play().catch(err => console.error("خطا در پخش صدا:", err));
+          isAudioPlaying = true;
+        } else {
+          audio.pause();
+          audio.currentTime = 0;
+          isAudioPlaying = false;
+        }
+      });
+
+      async function setVideoSrc(path) {
+        video.pause();
+        video.src = path;
+        video.load();
+      }
+
+      window.downloadCurrentVideo = function () {
+        if (video.src) {
+          const link = document.createElement("a");
+          link.href = video.src;
+          link.download = video.src.split("/").pop();
+          link.click();
+        }
+      };
+
+      window.addEventListener('load', async () => {
+        await checkTargetFile();
+        await requestCameraAndMotionPermission();
+      });
+    })();
+  </script>
+</body>
+</html>
