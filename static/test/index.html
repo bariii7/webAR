@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
   <style>
@@ -243,7 +244,7 @@
     device-orientation-permission-ui="enabled: false"
   >
 
-    <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000;"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .raycastable;"></a-camera>
     <a-entity id="dynamic-targets"></a-entity>
     <a-light type="ambient" intensity="0.5"></a-light>
     <a-light type="directional" intensity="0.5" position="1 1 1"></a-light>
@@ -338,10 +339,12 @@
             currentVideoPlane.setAttribute("rotation", "0 0 0");
             currentVideoPlane.setAttribute("visible", "false");
             currentVideoPlane.setAttribute("material", "side: double");
+            currentVideoPlane.classList.add('raycastable');
             entity.appendChild(currentVideoPlane);
           } else {
             currentVideoPlane = document.querySelector(`#videoPlane${index}`);
             currentVideoPlane.setAttribute("visible", "false");
+            currentVideoPlane.classList.add('raycastable');
           }
           video = getVideoElement(index);
           video.addEventListener("loadedmetadata", () => updatePlaneSize(video, index));
@@ -572,6 +575,7 @@
       modelEl.setAttribute('scale', '0.5 0.5 0.5');
       modelEl.setAttribute('rotation', '0 0 0');
       modelEl.setAttribute('touch-rotate', 'speed: 1');
+      modelEl.classList.add('raycastable');
       parent.appendChild(modelEl);
       currentModel = modelEl;
     }
