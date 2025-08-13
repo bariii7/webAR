@@ -262,6 +262,17 @@
     const MAX_TARGETS = 10;
     const DEFAULT_LANG = "fr";
     const VIDEO_EXTS = [".mp4", ".webm", ".mov"]; // prioritize mp4 first
+
+    function canPlayH264() {
+      const v = document.createElement('video');
+      return !!v.canPlayType && v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"').replace(/no/, '');
+    }
+
+    function orderExtensionsBySupport() {
+      const h264 = canPlayH264();
+      if (h264) return [".mp4", ".webm", ".mov"]; // stick with mp4 first
+      return [".webm", ".mp4", ".mov"]; // fallback
+    }
     let video = null;
     const sceneEl = document.querySelector("a-scene");
     const dynamicContainer = document.getElementById("dynamic-targets");
@@ -334,10 +345,20 @@
     async function showTargetContent(index, lang) {
       const entity = document.querySelector(`#target${index}`);
       let found = false;
-      for (let ext of VIDEO_EXTS) {
+      const exts = orderExtensionsBySupport();
+      for (let ext of exts) {
         const path = `video${index + 1}-${lang}${ext}`;
         if (await fileExists(path)) {
           await setVideoSrc(path, index);
+          // Preload likely next videos
+          setTimeout(() => {
+            const next = (index + 1) % MAX_TARGETS;
+            const preloadLink = document.createElement('link');
+            preloadLink.rel = 'preload';
+            preloadLink.as = 'video';
+            preloadLink.href = `video${next + 1}-${currentLang}${ext}`;
+            document.head.appendChild(preloadLink);
+          }, 0);
           if (!document.querySelector(`#videoPlane${index}`)) {
             currentVideoPlane = document.createElement("a-video");
             currentVideoPlane.setAttribute("id", `videoPlane${index}`);
@@ -361,11 +382,17 @@
           noVideoMsg.style.display = "none";
           if (!hasPlayedOnce) {
             playButton.style.display = "block";
-                 } else {
-             playButton.style.display = "none";
-             video.muted = false;
-             video.play().then(() => { currentVideoPlane.setAttribute("visible", "true"); });
-           }
+                   } else {
+                          playButton.style.display = "none";
+               video.muted = true;
+               const onPlayingOnce = () => {
+                 currentVideoPlane.setAttribute("visible", "true");
+                 if (hasPlayedOnce) video.muted = false;
+                 video.removeEventListener('playing', onPlayingOnce);
+               };
+               video.addEventListener('playing', onPlayingOnce);
+               video.play().catch(()=>{});
+             }
           break;
         }
       }
