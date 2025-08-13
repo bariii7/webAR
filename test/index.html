@@ -390,10 +390,7 @@
                  scanningOverlay.classList.add('hidden');
                  scanningOverlay.style.display = 'none';
                  if (hasPlayedOnce) video.muted = false;
-                 // auto music when normal video without audio
-                 if (!is3DVideoMode && !hasAudioTrack(video)) {
-                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; musicButton.style.display = 'none'; } catch {}
-                 }
+                 maybeAutoPlayMusicFor(index);
                  video.removeEventListener('playing', onPlayingOnce);
                };
                video.addEventListener('playing', onPlayingOnce);
@@ -435,6 +432,7 @@
           vidEl.play().then(() => {
             if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'true');
             playButton.style.display = 'none';
+            maybeAutoPlayMusicFor(idx);
           }).catch(()=>{});
         }
         vidEl.removeEventListener('canplay', onCanPlay);
@@ -671,7 +669,7 @@
       scanningOverlay.style.display = "none";
       await showTargetContent(targetIndex, currentLang);
       updateLinkButtons(targetIndex);
-      musicButton.style.display = "block";
+
     }
 
     // Play button handler for first user gesture autoplay restrictions
@@ -763,6 +761,25 @@
       } catch { return false; }
     }
 
+    function maybeAutoPlayMusicFor(index) {
+      // Always auto-play for 3D video; for normal videos only if they are silent
+      try {
+        if (is3DVideoMode) {
+          audio.src = `audio${index + 1}-3dv.mp3`;
+          audio.play().catch(()=>{});
+          isAudioPlaying = true;
+          musicButton.style.display = 'none';
+        } else if (!hasAudioTrack(sharedVideo)) {
+          audio.src = `audio${index + 1}.mp3`;
+          audio.play().catch(()=>{});
+          isAudioPlaying = true;
+          musicButton.style.display = 'none';
+        } else {
+          musicButton.style.display = 'none';
+        }
+      } catch {}
+    }
+
     window.addEventListener('load', async () => {
       await checkTargetFile();
       await loadLinks();
@@ -794,6 +811,8 @@
       if (video3dButtons.length > 1) {
         video3dButtons.forEach((btn, idx) => { if (idx > 0) btn.remove(); });
       }
+      // Always hide music button (auto-music handles itself)
+      musicButton.style.display = 'none';
     });
   </script>
 </body>
