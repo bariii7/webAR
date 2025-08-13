@@ -256,7 +256,7 @@
     // متغیرها
     const MAX_TARGETS = 10;
     const DEFAULT_LANG = "fr";
-    const VIDEO_EXTS = [".mp4", ".webm", ".mov"];
+    const VIDEO_EXTS = [".mp4", ".webm", ".mov"]; // prioritize mp4 first
     let video = null;
     const sceneEl = document.querySelector("a-scene");
     const dynamicContainer = document.getElementById("dynamic-targets");
@@ -288,6 +288,8 @@
       v.setAttribute('playsinline', '');
       v.setAttribute('webkit-playsinline', '');
       v.setAttribute('loop', '');
+      v.setAttribute('muted', '');
+      v.setAttribute('crossorigin', 'anonymous');
       v.muted = true;
       v.crossOrigin = "anonymous";
       v.style.display = "none";
@@ -353,13 +355,11 @@
           noVideoMsg.style.display = "none";
           if (!hasPlayedOnce) {
             playButton.style.display = "block";
-          } else {
-            playButton.style.display = "none";
-            setTimeout(() => {
-              video.muted = false;
-              video.play().then(() => { currentVideoPlane.setAttribute("visible", "true"); });
-            }, 150);
-          }
+                 } else {
+             playButton.style.display = "none";
+             video.muted = false;
+             video.play().then(() => { currentVideoPlane.setAttribute("visible", "true"); });
+           }
           break;
         }
       }
@@ -381,15 +381,23 @@
       const vidEl = getVideoElement(idx);
       if (!vidEl) return;
       try { vidEl.pause(); } catch {}
+      // Preload via HEAD to hint cache
+      try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
       vidEl.src = path;
+      vidEl.preload = 'auto';
       vidEl.load();
-      if (targetIndex === idx && hasPlayedOnce) {
-        vidEl.muted = false;
-        vidEl.play().then(() => {
-          if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
-          playButton.style.display = "none";
-        });
-      }
+      const onCanPlay = () => {
+        updatePlaneSize(vidEl, idx);
+        if (targetIndex === idx && hasPlayedOnce) {
+          vidEl.muted = false;
+          vidEl.play().then(() => {
+            if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'true');
+            playButton.style.display = 'none';
+          }).catch(()=>{});
+        }
+        vidEl.removeEventListener('canplay', onCanPlay);
+      };
+      vidEl.addEventListener('canplay', onCanPlay);
     }
 
 
@@ -610,10 +618,11 @@
     window.addEventListener('load', async () => {
       await checkTargetFile();
       await loadLinks();
+      // Warm cache for first target default language if exists
+      try { fetch(`video1-${currentLang}.mp4`, { method: 'HEAD' }); } catch {}
       // Ensure scene starts on mobile
       const scene = document.querySelector('a-scene');
       try { scene?.pause(); scene?.play(); } catch {}
-
       // Hook MindAR lifecycle events
       scene.addEventListener('arReady', () => {
         // camera stream is ready
@@ -624,7 +633,6 @@
         noVideoMsg.textContent = 'AR قابل راه‌اندازی نیست (مجوز/سازگاری). صفحه را رفرش کنید یا مرورگر دیگری امتحان کنید.';
         noVideoMsg.style.display = 'block';
       }, { once: true });
-
       // Explicitly start MindAR
       try {
         const mindarSystem = scene.systems && scene.systems['mindar-image-system'];
@@ -632,7 +640,6 @@
           await mindarSystem.start();
         }
       } catch {}
-
       await requestCameraAndMotionPermission();
     });
   </script>
