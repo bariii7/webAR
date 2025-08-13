@@ -378,6 +378,8 @@
                video.muted = true;
                const onPlayingOnce = () => {
                  currentVideoPlane.setAttribute("visible", "true");
+                 scanningOverlay.classList.add('hidden');
+                 scanningOverlay.style.display = 'none';
                  if (hasPlayedOnce) video.muted = false;
                  video.removeEventListener('playing', onPlayingOnce);
                };
@@ -411,6 +413,8 @@
       vidEl.load();
       const onCanPlay = () => {
         updatePlaneSize(vidEl, idx);
+        scanningOverlay.classList.add('hidden');
+        scanningOverlay.style.display = 'none';
         if (targetIndex === idx && hasPlayedOnce) {
           vidEl.muted = false;
           vidEl.play().then(() => {
@@ -561,8 +565,8 @@
       const curVid = getCurrentVideo();
       if (curVid) {
         try { curVid.pause(); } catch {}
-        curVid.removeAttribute('src');
-        curVid.load();
+        try { curVid.muted = true; } catch {}
+        try { curVid.src = ''; curVid.load(); } catch {}
       }
       if (audio) {
         audio.pause();
@@ -573,13 +577,14 @@
         const el = document.querySelector(`#${name}${targetIndex}`);
         if (el) el.remove();
       });
-      dynamicTargetImg.style.display = "none";
+      dynamicTargetImg.style.display = "block";
       targetIndex = null;
       langMenu.style.display = "none";
       musicButton.style.display = "none";
       playButton.style.display = "none";
       noVideoMsg.style.display = "none";
       scanningOverlay.classList.remove("hidden");
+      scanningOverlay.style.display = "flex";
       video = null;
       currentVideoPlane = null;
       currentExtraImagePlane = null;
@@ -588,9 +593,9 @@
 
     async function handleTargetFound(foundIndex) {
       targetIndex = parseInt(foundIndex);
-      dynamicTargetImg.style.display = "block";
-      dynamicTargetImg.src = `image${targetIndex + 1}.jpg`;
+      dynamicTargetImg.style.display = "none";
       scanningOverlay.classList.add("hidden");
+      scanningOverlay.style.display = "none";
       await showTargetContent(targetIndex, currentLang);
       updateLinkButtons(targetIndex);
       musicButton.style.display = "block";
