@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <script src="./aframe.min.js"></script>
-  <script src="./mindar-image-aframe.prod.js"></script>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
   <style>
     html, body {
@@ -234,7 +234,7 @@
     <img src="/icons/music.png" alt="Music">
   </button>
   <a-scene
-    mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: #scanning-overlay;"
+    mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: false;"
     embedded
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
@@ -264,23 +264,7 @@
     <a-light type="directional" intensity="0.5" position="1 1 1"></a-light>
   </a-scene>
   <script>
-    // چرخش سه‌بعدی مدل
-    AFRAME.registerComponent('touch-rotate', {
-      schema: { speed: { type: 'number', default: 1 } },
-      init: function() {
-        this.isDragging = false; this.previousX = 0; this.rotationY = 0;
-        this.el.addEventListener('touchstart', evt => { this.isDragging = true; this.previousX = evt.touches[0].clientX; });
-        this.el.addEventListener('touchmove', evt => {
-          if (!this.isDragging) return;
-          const currentX = evt.touches[0].clientX;
-          const deltaX = currentX - this.previousX;
-          this.rotationY -= deltaX * this.data.speed * 0.1;
-          this.el.setAttribute('rotation', `0 ${this.rotationY} 0`);
-          this.previousX = currentX;
-        });
-        this.el.addEventListener('touchend', () => { this.isDragging = false; });
-      }
-    });
+    // استفاده از کامپوننت touch-rotate از CDN بارگذاری‌شده
 
     // متغیرها
     const MAX_TARGETS = 10;
@@ -325,6 +309,8 @@
       const entity = document.createElement("a-entity");
       entity.setAttribute("id", `target${i}`);
       entity.setAttribute("mindar-image-target", `targetIndex: ${i}`);
+      entity.addEventListener("targetFound", () => handleTargetFound(i));
+      entity.addEventListener("targetLost", handleTargetLost);
       dynamicContainer.appendChild(entity);
     }
 
@@ -418,42 +404,7 @@
     }
 
 
-    const entity = document.querySelector(`#target${index}`);
-    let found = false;
-    for (let ext of VIDEO_EXTS) {
-      const path = `video${index + 1}-${lang}${ext}`;
-      if (await fileExists(path)) {
-        await setVideoSrc(path, index);
-        if (!document.querySelector(`#videoPlane${index}`)) {
-          currentVideoPlane = document.createElement("a-video");
-          currentVideoPlane.setAttribute("id", `videoPlane${index}`);
-          currentVideoPlane.setAttribute("src", `#myVideo${index}`);
-          currentVideoPlane.setAttribute("position", "0 0 0");
-          currentVideoPlane.setAttribute("rotation", "0 0 0");
-          currentVideoPlane.setAttribute("visible", "false");
-          currentVideoPlane.setAttribute("material", "side: double");
-          entity.appendChild(currentVideoPlane);
-        } else {
-          currentVideoPlane = document.querySelector(`#videoPlane${index}`);
-          currentVideoPlane.setAttribute("visible", "false");
-        }
-        video = getVideoElement(index);
-        video.addEventListener("loadedmetadata", ()=>updatePlaneSize(video,index));
-        found = true;
-        noVideoMsg.style.display = "none";
-        // فقط بار اول دکمه Play بیاد
-        if (!firstVideoPlayed) {
-          playButton.style.display = "block";
-        } else {
-          playButton.style.display = "none";
-          setTimeout(()=>{
-            video.muted = false;
-            video.play().then(()=>{ currentVideoPlane.setAttribute("visible","true"); });
-          }, 150);
-        }
-        break;
-      }
-    }
+
 
     musicButton.addEventListener("click", () => {
       if (targetIndex === null) {
@@ -519,51 +470,9 @@
       }
     };
 
-    sceneEl.addEventListener("targetLost", () => {
-      const curVid = getCurrentVideo();
-      if (curVid) {
-        try { curVid.pause(); } catch {}
-        curVid.removeAttribute('src');
-        curVid.load();
-      }
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        isAudioPlaying = false;
-      }
-      ["videoPlane","extraImagePlane","model","fallbackCube"].forEach(name => {
-        const el = document.querySelector(`#${name}${targetIndex}`);
-        if (el) el.remove();
-      });
-      dynamicTargetImg.style.display = "none";
-      targetIndex = null;
-      langMenu.style.display = "none";
-      musicButton.style.display = "none";
-      playButton.style.display = "none";
-      noVideoMsg.style.display = "none";
-      scanningOverlay.classList.remove("hidden");
-      hasPlayedOnce = false;
-      video = null;
-      currentVideoPlane = null;
-      currentExtraImagePlane = null;
-      currentModel = null;
-    });
 
-    sceneEl.addEventListener("targetFound", async (e) => {
-      let newTargetIndex = null;
-      try {
-        newTargetIndex = e.target?.getAttribute("mindar-image-target")?.targetIndex;
-      } catch {}
-      if (newTargetIndex == null) {
-        newTargetIndex = e.detail?.anchor?.targetIndex ?? 0;
-      }
-      targetIndex = parseInt(newTargetIndex);
-      dynamicTargetImg.style.display = "block";
-      dynamicTargetImg.src = `image${targetIndex + 1}.jpg`;
-      scanningOverlay.classList.add("hidden");
-      await showTargetContent(targetIndex, currentLang);
-      updateLinkButtons(targetIndex);
-    });
+
+
 
     async function loadLinks() {
       try {
@@ -599,6 +508,78 @@
       const cameraGranted = await requestCameraPermission();
       if (!cameraGranted) return;
       await startMindAR();
+    }
+
+    function handleTargetLost() {
+      const curVid = getCurrentVideo();
+      if (curVid) {
+        try { curVid.pause(); } catch {}
+        curVid.removeAttribute('src');
+        curVid.load();
+      }
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        isAudioPlaying = false;
+      }
+      ["videoPlane","extraImagePlane","model","fallbackCube"].forEach(name => {
+        const el = document.querySelector(`#${name}${targetIndex}`);
+        if (el) el.remove();
+      });
+      dynamicTargetImg.style.display = "none";
+      targetIndex = null;
+      langMenu.style.display = "none";
+      musicButton.style.display = "none";
+      playButton.style.display = "none";
+      noVideoMsg.style.display = "none";
+      scanningOverlay.classList.remove("hidden");
+      hasPlayedOnce = false;
+      video = null;
+      currentVideoPlane = null;
+      currentExtraImagePlane = null;
+      currentModel = null;
+    }
+
+    async function handleTargetFound(foundIndex) {
+      targetIndex = parseInt(foundIndex);
+      dynamicTargetImg.style.display = "block";
+      dynamicTargetImg.src = `image${targetIndex + 1}.jpg`;
+      scanningOverlay.classList.add("hidden");
+      await showTargetContent(targetIndex, currentLang);
+      updateLinkButtons(targetIndex);
+      musicButton.style.display = "block";
+    }
+
+    // Play button handler for first user gesture autoplay restrictions
+    playButton.addEventListener("click", async () => {
+      if (targetIndex === null) return;
+      const curVid = getCurrentVideo();
+      if (!curVid) return;
+      try { await curVid.play(); } catch {}
+      if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
+      curVid.muted = false;
+      hasPlayedOnce = true;
+      playButton.style.display = "none";
+    });
+
+    // Basic 3D model display if available
+    async function showModelIfExists(index) {
+      const parent = document.querySelector(`#target${index}`);
+      if (!parent) return;
+      // remove video plane if visible
+      if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
+      const existing = document.querySelector(`#model${index}`);
+      if (existing) existing.remove();
+      const modelId = `#model${index+1}`;
+      const modelEl = document.createElement('a-entity');
+      modelEl.setAttribute('id', `model${index}`);
+      modelEl.setAttribute('gltf-model', modelId);
+      modelEl.setAttribute('position', '0 0 0');
+      modelEl.setAttribute('scale', '0.5 0.5 0.5');
+      modelEl.setAttribute('rotation', '0 0 0');
+      modelEl.setAttribute('touch-rotate', 'speed: 1');
+      parent.appendChild(modelEl);
+      currentModel = modelEl;
     }
 
     window.addEventListener('load', async () => {
