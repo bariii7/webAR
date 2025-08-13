@@ -168,10 +168,14 @@
       height: 10px;
       background: white;
       animation: move 2s linear infinite;
+      will-change: transform;
     }
     @keyframes move {
-      0%, 100% { top: 0% }
-      50% { top: calc(100% - 10px) }
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(calc(100% - 10px)); }
+    }
+    #scanning-overlay.hidden .scanline {
+      animation: none !important;
     }
     #playButton {
       position: absolute;
@@ -235,6 +239,7 @@
     <img src="/icons/music.png" alt="Music">
   </button>
   <audio id="audio" preload="auto" style="display:none"></audio>
+  <video id="sharedVideo" playsinline webkit-playsinline muted loop preload="metadata" crossorigin="anonymous" style="display:none"></video>
       <a-scene
     mindar-image="imageTargetSrc: target.mind; maxTrack: 1; uiLoading: false; uiScanning: false;"
     embedded
@@ -280,21 +285,11 @@
     const dynamicTargetImg = document.getElementById("dynamicTargetImg");
     const audio = document.querySelector("#audio");
     const noVideoMsg = document.getElementById("noVideoMsg");
+    const sharedVideo = document.getElementById('sharedVideo');
 
     // ایجاد ویدیوهای per target
     for (let i = 0; i < MAX_TARGETS; i++) {
-      const v = document.createElement('video');
-      v.setAttribute('id', `myVideo${i}`);
-      v.setAttribute('playsinline', '');
-      v.setAttribute('webkit-playsinline', '');
-      v.setAttribute('loop', '');
-      v.setAttribute('muted', '');
-      v.setAttribute('crossorigin', 'anonymous');
-      v.muted = true;
-      v.crossOrigin = "anonymous";
-      v.style.display = "none";
-      document.body.appendChild(v);
-
+      // Remove per-target hidden videos to reduce decode restarts
       const entity = document.createElement("a-entity");
       entity.setAttribute("id", `target${i}`);
       entity.setAttribute("mindar-image-target", `targetIndex: ${i}`);
@@ -303,16 +298,25 @@
       dynamicContainer.appendChild(entity);
     }
 
-    function getVideoElement(idx) { return document.querySelector(`#myVideo${idx}`); }
-    function getCurrentVideo() { return (targetIndex === null) ? null : getVideoElement(targetIndex); }
+    function getVideoElement(idx) { return sharedVideo; }
+    function getCurrentVideo() { return (targetIndex === null) ? null : sharedVideo; }
 
     function updatePlaneSize(vidEl, idx) {
-      const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
-      const fixedHeight = 1;
-      const width = fixedHeight * aspect;
-      const height = fixedHeight;
       const vPlane = document.querySelector(`#videoPlane${idx}`);
-      if (vPlane) { vPlane.setAttribute("width", width); vPlane.setAttribute("height", height); vPlane.setAttribute("position", `0 0 0`); }
+      if (!vPlane) return;
+      const defaultHeight = 1;
+      const maxWidth = 1.6; // clamp to avoid huge resizes
+      const aspect = (vidEl.videoWidth && vidEl.videoHeight) ? (vidEl.videoWidth / vidEl.videoHeight) : 16/9;
+      let width = defaultHeight * aspect;
+      let height = defaultHeight;
+      if (width > maxWidth) {
+        const scale = maxWidth / width;
+        width = maxWidth;
+        height = height * scale;
+      }
+      vPlane.setAttribute("width", width);
+      vPlane.setAttribute("height", height);
+      vPlane.setAttribute("position", `0 0 0`);
     }
 
     function normalizeUrl(url) {
@@ -337,11 +341,13 @@
           if (!document.querySelector(`#videoPlane${index}`)) {
             currentVideoPlane = document.createElement("a-video");
             currentVideoPlane.setAttribute("id", `videoPlane${index}`);
-            currentVideoPlane.setAttribute("src", `#myVideo${index}`);
+            currentVideoPlane.setAttribute("src", `#sharedVideo`);
             currentVideoPlane.setAttribute("position", "0 0 0");
             currentVideoPlane.setAttribute("rotation", "0 0 0");
             currentVideoPlane.setAttribute("visible", "false");
             currentVideoPlane.setAttribute("material", "side: double");
+            currentVideoPlane.setAttribute("width", "1.6");
+            currentVideoPlane.setAttribute("height", "0.9");
             currentVideoPlane.classList.add('raycastable');
             entity.appendChild(currentVideoPlane);
           } else {
@@ -378,10 +384,9 @@
     }
 
     async function setVideoSrc(path, idx) {
-      const vidEl = getVideoElement(idx);
+      const vidEl = sharedVideo;
       if (!vidEl) return;
       try { vidEl.pause(); } catch {}
-      // Preload via HEAD to hint cache
       try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
       vidEl.src = path;
       vidEl.preload = 'auto';
