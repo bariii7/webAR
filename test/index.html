@@ -735,14 +735,9 @@
       const existing = document.querySelector(`#model${index}`);
       if (existing) existing.remove();
 
-      // only .glb per request
-      const candidates = [
-        `model${index+1}.glb`,
-        `models/model${index+1}.glb`
-      ];
-      let url = null;
-      for (const c of candidates) { if (await fileExists(c)) { url = c; break; } }
-      if (!url) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
+      // exact naming: model{index}.glb in current directory
+      const url = `model${index+1}.glb`;
+      if (!(await fileExists(url))) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
 
       const modelEl = document.createElement('a-entity');
       modelEl.setAttribute('id', `model${index}`);
@@ -750,7 +745,7 @@
       modelEl.setAttribute('position', '0 0 0');
       modelEl.setAttribute('scale', '0.01 0.01 0.01');
       modelEl.setAttribute('rotation', '0 0 0');
-      modelEl.setAttribute('drag-rotate-y', 'speed: 1');
+      modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
       modelEl.classList.add('raycastable');
       parent.appendChild(modelEl);
       currentModel = modelEl;
@@ -767,36 +762,29 @@
       if (currentModel) { currentModel.remove(); currentModel = null; }
       if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
 
-      // First, try GLB models for 3D content
-      const glbCandidates = [
-        `model${index + 1}-3dv.glb`,
-        `models/model${index + 1}-3dv.glb`,
-        `model${index + 1}.glb`,
-        `models/model${index + 1}.glb`
-      ];
-      for (const url of glbCandidates) {
-        if (await fileExists(url)) {
-          const modelEl = document.createElement('a-entity');
-          modelEl.setAttribute('id', `model${index}`);
-          modelEl.setAttribute('gltf-model', url);
-          modelEl.setAttribute('position', '0 0 0');
-          modelEl.setAttribute('scale', '0.01 0.01 0.01');
-          modelEl.setAttribute('rotation', '0 0 0');
-          modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
-          modelEl.classList.add('raycastable');
-          parent.appendChild(modelEl);
-          currentModel = modelEl;
-          is3DVideoMode = true;
-          // start music automatically for 3D content
-          try {
-            audio.src = `audio${index + 1}-3dv.mp3`;
-            await audio.play();
-          } catch {
-            try { audio.src = `audio${index + 1}.mp3`; await audio.play(); } catch {}
-          }
-          musicButton.style.display = 'none';
-          return;
+      // exact naming: model{index}.glb in current directory
+      const url = `model${index + 1}.glb`;
+      if (await fileExists(url)) {
+        const modelEl = document.createElement('a-entity');
+        modelEl.setAttribute('id', `model${index}`);
+        modelEl.setAttribute('gltf-model', url);
+        modelEl.setAttribute('position', '0 0 0');
+        modelEl.setAttribute('scale', '0.01 0.01 0.01');
+        modelEl.setAttribute('rotation', '0 0 0');
+        modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
+        modelEl.classList.add('raycastable');
+        parent.appendChild(modelEl);
+        currentModel = modelEl;
+        is3DVideoMode = true;
+        // start music automatically for 3D content
+        try {
+          audio.src = `audio${index + 1}-3dv.mp3`;
+          await audio.play();
+        } catch {
+          try { audio.src = `audio${index + 1}.mp3`; await audio.play(); } catch {}
         }
+        musicButton.style.display = 'none';
+        return;
       }
 
       // Else, fall back to 360 video files
