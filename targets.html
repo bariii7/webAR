@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="فا">
 <head>
   <meta charset="UTF-8" />
   <title>Targets list</title>
@@ -26,6 +26,10 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     input[type=file] { display:none; }
     .inline { display:inline-block; }
+    /* Uploading overlay */
+    #uploadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: none; z-index: 9999; align-items: center; justify-content: center; }
+    #uploadingOverlay .box { background: #fff; padding: 16px 20px; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.15); text-align: center; }
+    #uploadingOverlay .text { margin-top: 10px; color: #2c3e50; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -35,11 +39,18 @@
     <div id="loading"><div class="spinner"></div></div>
     <div id="folders"></div>
   </div>
+  <div id="uploadingOverlay">
+    <div class="box">
+      <div class="spinner"></div>
+      <div class="text">در حال آپلود...</div>
+    </div>
+  </div>
 
   <script>
     const AUTH = 'Basic ' + btoa('admin:password123');
     const foldersDiv = document.getElementById('folders');
     const loading = document.getElementById('loading');
+    const uploadingOverlay = document.getElementById('uploadingOverlay');
 
     function el(tag, cls, html) { const d=document.createElement(tag); if(cls) d.className=cls; if(html!==undefined) d.innerHTML=html; return d; }
 
@@ -128,13 +139,13 @@
         const fd = new FormData();
         fd.append('folder_name', folderName);
         fd.append(fieldName, fileObj);
-        loading.style.display = 'block';
+        uploadingOverlay.style.display = 'flex';
         const resp = await fetch('/edit-target', { method: 'POST', body: fd });
         if (!resp.ok) throw new Error(await resp.text());
         await fetchAll();
         alert('ویرایش انجام شد');
       } catch (e) { alert('خطا در ویرایش: ' + (e.message||e)); }
-      finally { loading.style.display = 'none'; }
+      finally { uploadingOverlay.style.display = 'none'; }
     }
 
     async function deleteFolder(folderName) {
