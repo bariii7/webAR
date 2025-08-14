@@ -760,16 +760,46 @@
       const parent = document.querySelector(`#target${index}`);
       if (!parent) return;
       // Stop any current normal video audio immediately
-      try {
-        sharedVideo.pause(); sharedVideo.muted = true; sharedVideo.currentTime = 0;
-      } catch {}
+      try { sharedVideo.pause(); sharedVideo.muted = true; sharedVideo.currentTime = 0; } catch {}
       if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
-
-      // remove old
-      if (currentVideoPlane) currentVideoPlane.setAttribute('visible','false');
+      // Hide/remove any video plane so 3D doesn't overlay
+      removeVideoPlaneFor(index);
       if (currentModel) { currentModel.remove(); currentModel = null; }
       if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
 
+      // First, try GLB models for 3D content
+      const glbCandidates = [
+        `model${index + 1}-3dv.glb`,
+        `models/model${index + 1}-3dv.glb`,
+        `model${index + 1}.glb`,
+        `models/model${index + 1}.glb`
+      ];
+      for (const url of glbCandidates) {
+        if (await fileExists(url)) {
+          const modelEl = document.createElement('a-entity');
+          modelEl.setAttribute('id', `model${index}`);
+          modelEl.setAttribute('gltf-model', url);
+          modelEl.setAttribute('position', '0 0 0');
+          modelEl.setAttribute('scale', '0.01 0.01 0.01');
+          modelEl.setAttribute('rotation', '0 0 0');
+          modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
+          modelEl.classList.add('raycastable');
+          parent.appendChild(modelEl);
+          currentModel = modelEl;
+          is3DVideoMode = true;
+          // start music automatically for 3D content
+          try {
+            audio.src = `audio${index + 1}-3dv.mp3`;
+            await audio.play();
+          } catch {
+            try { audio.src = `audio${index + 1}.mp3`; await audio.play(); } catch {}
+          }
+          musicButton.style.display = 'none';
+          return;
+        }
+      }
+
+      // Else, fall back to 360 video files
       const exts = orderExtensionsBySupport();
       let foundUrl = null;
       for (let ext of exts) {
@@ -777,7 +807,7 @@
         if (await fileExists(path)) { foundUrl = path; break; }
       }
       if (!foundUrl) {
-        noVideoMsg.textContent = '3D Video not found';
+        noVideoMsg.textContent = '3D content not found';
         noVideoMsg.style.display = 'block';
         return;
       }
@@ -791,7 +821,7 @@
       sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: double');
       sphere.setAttribute('rotation', '0 0 0');
       sphere.setAttribute('position', '0 0 0');
-      sphere.setAttribute('drag-rotate-y', 'speed: 1');
+      sphere.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
       parent.appendChild(sphere);
       currentVideoSphere = sphere;
       is3DVideoMode = true;
@@ -828,6 +858,14 @@
           musicButton.style.display = 'none';
         }
       } catch {}
+    }
+
+    function removeVideoPlaneFor(index) {
+      const videoPlane = document.querySelector(`#videoPlane${index}`);
+      if (videoPlane) {
+        videoPlane.remove();
+        currentVideoPlane = null;
+      }
     }
 
     window.addEventListener('load', async () => {
