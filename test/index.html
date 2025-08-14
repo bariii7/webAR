@@ -413,10 +413,11 @@
       }
     }
 
-    async function setVideoSrc(path, idx) {
+    async function setVideoSrc(path, idx, options = {}) {
       const vidEl = sharedVideo;
       if (!vidEl) return;
       try { vidEl.pause(); } catch {}
+      try { vidEl.muted = true; } catch {}
       try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
       const myToken = ++playToken;
       vidEl.src = path;
@@ -428,7 +429,7 @@
         scanningOverlay.classList.add('hidden');
         scanningOverlay.style.display = 'none';
         if (targetIndex === idx && hasPlayedOnce) {
-          vidEl.muted = false;
+          if (!options.forceMute) vidEl.muted = false;
           vidEl.play().then(() => {
             if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'true');
             playButton.style.display = 'none';
@@ -475,6 +476,10 @@
           alert("ابتدا یک تارگت را اسکن کنید");
           return;
         }
+        // stop current audio/video immediately to prevent bleed
+        try { sharedVideo.pause(); sharedVideo.muted = true; } catch {}
+        if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
+
         if (lang === "3d") {
           is3DVideoMode = false;
           await showModelIfExists(targetIndex);
@@ -717,6 +722,12 @@
     async function show3DVideoIfExists(index) {
       const parent = document.querySelector(`#target${index}`);
       if (!parent) return;
+      // Stop any current normal video audio immediately
+      try {
+        sharedVideo.pause(); sharedVideo.muted = true; sharedVideo.currentTime = 0;
+      } catch {}
+      if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
+
       // remove old
       if (currentVideoPlane) currentVideoPlane.setAttribute('visible','false');
       if (currentModel) { currentModel.remove(); currentModel = null; }
@@ -733,7 +744,8 @@
         noVideoMsg.style.display = 'block';
         return;
       }
-      await setVideoSrc(foundUrl, index);
+      // set new source muted first
+      await setVideoSrc(foundUrl, index, { forceMute: true });
 
       const sphere = document.createElement('a-entity');
       sphere.setAttribute('id', `videoSphere${index}`);
@@ -752,6 +764,7 @@
         audio.src = `audio${index + 1}-3dv.mp3`;
         await audio.play();
         isAudioPlaying = true;
+        musicButton.style.display = 'none';
       } catch {}
     }
 
