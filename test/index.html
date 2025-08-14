@@ -5,9 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
+  <script>
+    AFRAME.registerComponent('drag-rotate-y', {
+      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
+      init: function () {
+        this.isDragging = false; this.prevX = 0; this.prevY = 0;
+        const onDown = (e) => { this.isDragging = true; const t = (e.touches && e.touches[0]) || e; this.prevX = t.clientX||0; this.prevY = t.clientY||0; };
+        const onMove = (e) => { if (!this.isDragging) return; const t=(e.touches&&e.touches[0])||e; const x=t.clientX||0; const y=t.clientY||0; const dx=x-this.prevX; const dy=y-this.prevY; const rot=this.el.getAttribute('rotation')||{x:0,y:0,z:0}; rot.y -= dx*this.data.speed*0.2; rot.x -= dy*this.data.pitch*0.2; if (rot.x>80) rot.x=80; if (rot.x<-80) rot.x=-80; this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`); this.prevX=x; this.prevY=y; };
+        const onUp = () => { this.isDragging = false; };
+        window.addEventListener('touchstart', onDown, {passive:true});
+        window.addEventListener('touchmove', onMove, {passive:true});
+        window.addEventListener('touchend', onUp, {passive:true});
+        window.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.removeHandlers = () => { window.removeEventListener('touchstart', onDown); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onUp); window.removeEventListener('mousedown', onDown); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+      },
+      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
+    });
+  </script>
   <style>
     html, body {
       margin: 0;
@@ -253,6 +271,25 @@
     <a-light type="directional" intensity="0.5" position="1 1 1"></a-light>
   </a-scene>
   <script>
+    // Drag rotate component (touch/mouse) around Y + X axes; must be declared before scene init
+    AFRAME.registerComponent('drag-rotate-y', {
+      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
+      init: function () {
+        this.isDragging = false; this.prevX = 0; this.prevY = 0;
+        const onDown = (e) => { this.isDragging = true; const t = (e.touches && e.touches[0]) || e; this.prevX = t.clientX||0; this.prevY = t.clientY||0; };
+        const onMove = (e) => { if (!this.isDragging) return; const t=(e.touches&&e.touches[0])||e; const x=t.clientX||0; const y=t.clientY||0; const dx=x-this.prevX; const dy=y-this.prevY; const rot=this.el.getAttribute('rotation')||{x:0,y:0,z:0}; rot.y -= dx*this.data.speed*0.2; rot.x -= dy*this.data.pitch*0.2; if (rot.x>80) rot.x=80; if (rot.x<-80) rot.x=-80; this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`); this.prevX=x; this.prevY=y; };
+        const onUp = () => { this.isDragging = false; };
+        window.addEventListener('touchstart', onDown, {passive:true});
+        window.addEventListener('touchmove', onMove, {passive:true});
+        window.addEventListener('touchend', onUp, {passive:true});
+        window.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.removeHandlers = () => { window.removeEventListener('touchstart', onDown); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onUp); window.removeEventListener('mousedown', onDown); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+      },
+      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
+    });
+
     // استفاده از کامپوننت touch-rotate از CDN بارگذاری‌شده
 
     // متغیرها
@@ -353,7 +390,7 @@
             const next = (index + 1) % MAX_TARGETS;
             const preloadLink = document.createElement('link');
             preloadLink.rel = 'preload';
-            preloadLink.as = 'video';
+            preloadLink.as = 'fetch';
             preloadLink.href = `video${next + 1}-${currentLang}${ext}`;
             document.head.appendChild(preloadLink);
           }, 0);
