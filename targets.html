@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <title>Targets list</title>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Vazirmatn', sans-serif; background: linear-gradient(135deg, #4c6ef5 0%, #b3c7ff 100%); color: #222; margin: 0; padding: 24px; min-height: 100vh; direction: rtl; }
+    .container { max-width: 1100px; margin: auto; background: #fff; padding: 20px 24px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); }
+    h1 { text-align: center; color: #2c3e50; margin: 8px 0 16px; }
+    .back-btn { display: block; margin: 0 auto 16px; padding: 10px 18px; background-color: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 700; }
+    details { border: 1px solid #e0e0e0; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; background: #fafbff; }
+    summary { cursor: pointer; font-weight: 700; color: #364fc7; outline: none; }
+    .targets { margin-top: 10px; }
+    .target-item details { background: #fff; }
+    .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+    .label { min-width: 110px; color: #555; font-weight: 700; }
+    .preview img { max-width: 220px; border-radius: 8px; border: 1px solid #eee; }
+    .preview video { max-width: 320px; }
+    .btn { padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; background: #3498db; color: #fff; }
+    .btn.delete { background: #e74c3c; }
+    .btn.edit { background: #f1c40f; color: #fff; }
+    .muted { color: #777; font-size: 13px; }
+    #loading { display: none; text-align: center; margin: 16px 0; }
+    .spinner { width: 34px; height: 34px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin: auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    input[type=file] { display:none; }
+    .inline { display:inline-block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>لیست تارگت‌ها</h1>
+    <button class="back-btn" onclick="window.location.href='/admin/index.html'">بازگشت به پنل ادمین</button>
+    <div id="loading"><div class="spinner"></div></div>
+    <div id="folders"></div>
+  </div>
+
+  <script>
+    const AUTH = 'Basic ' + btoa('admin:password123');
+    const foldersDiv = document.getElementById('folders');
+    const loading = document.getElementById('loading');
+
+    function el(tag, cls, html) { const d=document.createElement(tag); if(cls) d.className=cls; if(html!==undefined) d.innerHTML=html; return d; }
+
+    async function fetchAll() {
+      loading.style.display = 'block'; foldersDiv.innerHTML = '';
+      try {
+        const resp = await fetch('/api/targets', { headers: { Authorization: AUTH } });
+        if (!resp.ok) throw new Error('Load failed');
+        const data = await resp.json();
+        renderFolders(Array.isArray(data) ? data : []);
+      } catch (e) {
+        foldersDiv.innerHTML = '<p>خطا در بارگذاری</p>';
+      } finally { loading.style.display = 'none'; }
+    }
+
+    function renderFolders(folders) {
+      if (!folders.length) { foldersDiv.innerHTML = '<p>تارگتی یافت نشد</p>'; return; }
+      folders.forEach(folder => {
+        const det = el('details');
+        const numActive = (folder.targets||[]).filter(t => hasAnyAsset(t)).length;
+        det.appendChild(el('summary', '', `${folder.folder_name} <span class="muted">(${numActive} تارگت فعال)</span>`));
+
+        const box = el('div', 'targets');
+        // folder-level: webar link + edit .mind + delete
+        const topRow = el('div', 'row');
+        topRow.appendChild(el('div','label','لینک WebAR'));
+        topRow.appendChild(el('div','preview inline', `<a class="btn" href="${folder.webar_url}" target="_blank">Open</a>`));
+        const mindBtn = el('button','btn edit inline','Edit .mind');
+        const mindInput = el('input'); mindInput.type='file'; mindInput.accept='.mind'; mindInput.onchange = () => mindInput.files[0] && uploadSingle(folder.folder_name, 'target_mind', mindInput.files[0]);
+        mindBtn.onclick = () => mindInput.click();
+        topRow.appendChild(mindBtn); topRow.appendChild(mindInput);
+        const delBtn = el('button','btn delete inline','Delete folder'); delBtn.onclick = () => deleteFolder(folder.folder_name);
+        topRow.appendChild(delBtn);
+        box.appendChild(topRow);
+
+        (folder.targets||[]).forEach(t => {
+          if (!hasAnyAsset(t)) return;
+          const tdet = el('details','target-item');
+          tdet.appendChild(el('summary','', `Target ${t.index}`));
+          const wrap = el('div');
+
+          // image
+          if (t.image) wrap.appendChild(assetRow(folder.folder_name, t.index, 'تصویر', t.image, `image${t.index}`, 'image/*'));
+          // extra image
+          if (t.extra_image) wrap.appendChild(assetRow(folder.folder_name, t.index, 'تصویر اضافی', t.extra_image, `extra_image${t.index}`, 'image/*'));
+          // videos per language
+          const vids = t.videos || {}; const langs = ['en','fr','de','es'];
+          langs.forEach(l => { if (vids[l]) wrap.appendChild(assetRow(folder.folder_name, t.index, `ویدیو ${l.toUpperCase()}`, vids[l], `video${t.index}_${l}`, 'video/*')); });
+          // 3D model
+          if (t.model) wrap.appendChild(assetRow(folder.folder_name, t.index, 'مدل 3D (.glb)', t.model, `model${t.index}`, '.glb'));
+          // audio
+          if (t.audio) wrap.appendChild(assetRow(folder.folder_name, t.index, 'صوت', t.audio, `audio${t.index}`, '.mp3,.wav'));
+
+          tdet.appendChild(wrap);
+          box.appendChild(tdet);
+        });
+
+        det.appendChild(box);
+        foldersDiv.appendChild(det);
+      });
+    }
+
+    function hasAnyAsset(t) {
+      return Boolean(t && (t.image || t.model || t.audio || t.extra_image || (t.videos && Object.values(t.videos).some(v=>v))));
+    }
+
+    function assetRow(folderName, idx, label, url, fieldName, accept) {
+      const row = el('div','row');
+      row.appendChild(el('div','label', label));
+      const preview = el('div','preview');
+      if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) preview.innerHTML = `<video controls preload="metadata"><source src="${url}"></video>`;
+      else if (/\.(mp3|wav)(\?|$)/i.test(url)) preview.innerHTML = `<audio controls preload="metadata" src="${url}"></audio>`;
+      else if (/\.(glb|gltf)(\?|$)/i.test(url)) preview.innerHTML = `<a href="${url}" target="_blank" class="btn">دانلود مدل</a>`;
+      else preview.innerHTML = `<img src="${url}" alt="${label}">`;
+      row.appendChild(preview);
+
+      const editBtn = el('button','btn edit','Edit');
+      const fileInput = el('input'); fileInput.type='file'; if (accept) fileInput.accept = accept; fileInput.onchange = () => fileInput.files[0] && uploadSingle(folderName, fieldName, fileInput.files[0]);
+      editBtn.onclick = () => fileInput.click();
+      row.appendChild(editBtn); row.appendChild(fileInput);
+      return row;
+    }
+
+    async function uploadSingle(folderName, fieldName, fileObj) {
+      try {
+        const fd = new FormData();
+        fd.append('folder_name', folderName);
+        fd.append(fieldName, fileObj);
+        loading.style.display = 'block';
+        const resp = await fetch('/edit-target', { method: 'POST', body: fd });
+        if (!resp.ok) throw new Error(await resp.text());
+        await fetchAll();
+        alert('ویرایش انجام شد');
+      } catch (e) { alert('خطا در ویرایش: ' + (e.message||e)); }
+      finally { loading.style.display = 'none'; }
+    }
+
+    async function deleteFolder(folderName) {
+      if (!confirm(`حذف ${folderName} ؟`)) return;
+      try {
+        const fd = new FormData(); fd.append('folder_name', folderName);
+        loading.style.display = 'block';
+        const resp = await fetch('/delete-target', { method: 'POST', body: fd });
+        if (!resp.ok) throw new Error(await resp.text());
+        await fetchAll();
+        alert('حذف شد');
+      } catch (e) { alert('خطا در حذف: ' + (e.message||e)); }
+      finally { loading.style.display = 'none'; }
+    }
+
+    window.addEventListener('load', fetchAll);
+  </script>
+</body>
+</html>
