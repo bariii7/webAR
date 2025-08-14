@@ -379,6 +379,9 @@
     async function showTargetContent(index, lang) {
       const entity = document.querySelector(`#target${index}`);
       let found = false;
+      // remove any 3D visuals when switching back to normal video
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+      if (currentModel) { currentModel.remove(); currentModel = null; }
       const exts = orderExtensionsBySupport();
       for (let ext of exts) {
         const path = `video${index + 1}-${lang}${ext}`;
@@ -517,10 +520,7 @@
         try { sharedVideo.pause(); sharedVideo.muted = true; } catch {}
         if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
 
-        if (lang === "3d") {
-          is3DVideoMode = false;
-          await showModelIfExists(targetIndex);
-        } else if (lang === '3dv') {
+        if (lang === '3dv') {
           await show3DVideoIfExists(targetIndex);
         } else {
           is3DVideoMode = false;
