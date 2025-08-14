@@ -5,9 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="mobile-web-app-capable" content="yes" />
   <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/mayognaise/aframe-touch-rotate-component/dist/aframe-touch-rotate-component.min.js"></script>
+  <script>
+    AFRAME.registerComponent('drag-rotate-y', {
+      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
+      init: function () {
+        this.isDragging = false; this.prevX = 0; this.prevY = 0;
+        const onDown = (e) => { this.isDragging = true; const t = (e.touches && e.touches[0]) || e; this.prevX = t.clientX||0; this.prevY = t.clientY||0; };
+        const onMove = (e) => { if (!this.isDragging) return; const t=(e.touches&&e.touches[0])||e; const x=t.clientX||0; const y=t.clientY||0; const dx=x-this.prevX; const dy=y-this.prevY; const rot=this.el.getAttribute('rotation')||{x:0,y:0,z:0}; rot.y -= dx*this.data.speed*0.2; rot.x -= dy*this.data.pitch*0.2; if (rot.x>80) rot.x=80; if (rot.x<-80) rot.x=-80; this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`); this.prevX=x; this.prevY=y; };
+        const onUp = () => { this.isDragging = false; };
+        window.addEventListener('touchstart', onDown, {passive:true});
+        window.addEventListener('touchmove', onMove, {passive:true});
+        window.addEventListener('touchend', onUp, {passive:true});
+        window.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        this.removeHandlers = () => { window.removeEventListener('touchstart', onDown); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onUp); window.removeEventListener('mousedown', onDown); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+      },
+      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
+    });
+  </script>
   <style>
     html, body {
       margin: 0;
@@ -197,21 +215,21 @@
 </head>
 <body>
   <div class="top-logo">
-    <img src="/icons/logo.png" alt="Logo" />
+    <img src="../icons/logo.png" alt="Logo" />
   </div>
   <div class="control-buttons">
     <div class="button-row">
       <button class="icon-button" id="formButton">
-        <img src="/icons/avi.png" alt="Form">
+        <img src="../icons/avi.png" alt="Form">
       </button>
       <button class="icon-button" onclick="downloadCurrentVideo()">
-        <img src="/icons/dan.png" alt="Download">
+        <img src="../icons/dan.png" alt="Download">
       </button>
       <button class="icon-button-2 business-card-button" id="cardButton">
-        <img src="/icons/card.png" alt="Card">
+        <img src="../icons/card.png" alt="Card">
       </button>
       <button class="icon-button" id="langButton">
-        <img src="/icons/lang.png" alt="Lang">
+        <img src="../icons/lang.png" alt="Lang">
       </button>
     </div>
   </div>
@@ -230,10 +248,10 @@
   <div id="noVideoMsg" style="display:none"></div>
   </div>
   <button class="icon-button" id="playButton" style="display: none;">
-    <img src="/icons/play-icon.png" alt="Play Video">
+    <img src="../icons/play-icon.png" alt="Play Video">
   </button>
   <button class="icon-button" id="musicButton" style="display: none;">
-    <img src="/icons/music.png" alt="Music">
+    <img src="../icons/music.png" alt="Music">
   </button>
   <audio id="audio" preload="auto" style="display:none"></audio>
   <video id="sharedVideo" playsinline webkit-playsinline muted loop preload="metadata" crossorigin="anonymous" style="display:none"></video>
@@ -342,6 +360,9 @@
     async function showTargetContent(index, lang) {
       const entity = document.querySelector(`#target${index}`);
       let found = false;
+      // remove any 3D visuals when switching back to normal video
+      if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
+      if (currentModel) { currentModel.remove(); currentModel = null; }
       const exts = orderExtensionsBySupport();
       for (let ext of exts) {
         const path = `video${index + 1}-${lang}${ext}`;
@@ -353,7 +374,7 @@
             const next = (index + 1) % MAX_TARGETS;
             const preloadLink = document.createElement('link');
             preloadLink.rel = 'preload';
-            preloadLink.as = 'video';
+            preloadLink.as = 'fetch';
             preloadLink.href = `video${next + 1}-${currentLang}${ext}`;
             document.head.appendChild(preloadLink);
           }, 0);
@@ -390,10 +411,7 @@
                  scanningOverlay.classList.add('hidden');
                  scanningOverlay.style.display = 'none';
                  if (hasPlayedOnce) video.muted = false;
-                 // auto music when normal video without audio
-                 if (!is3DVideoMode && !hasAudioTrack(video)) {
-                   try { audio.src = `audio${index + 1}.mp3`; await audio.play(); isAudioPlaying = true; musicButton.style.display = 'none'; } catch {}
-                 }
+                 maybeAutoPlayMusicFor(index);
                  video.removeEventListener('playing', onPlayingOnce);
                };
                video.addEventListener('playing', onPlayingOnce);
@@ -416,10 +434,11 @@
       }
     }
 
-    async function setVideoSrc(path, idx) {
+    async function setVideoSrc(path, idx, options = {}) {
       const vidEl = sharedVideo;
       if (!vidEl) return;
       try { vidEl.pause(); } catch {}
+      try { vidEl.muted = true; } catch {}
       try { await fetch(path, { method: 'HEAD', cache: 'reload' }); } catch {}
       const myToken = ++playToken;
       vidEl.src = path;
@@ -431,10 +450,11 @@
         scanningOverlay.classList.add('hidden');
         scanningOverlay.style.display = 'none';
         if (targetIndex === idx && hasPlayedOnce) {
-          vidEl.muted = false;
+          if (!options.forceMute) vidEl.muted = false;
           vidEl.play().then(() => {
             if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'true');
             playButton.style.display = 'none';
+            maybeAutoPlayMusicFor(idx);
           }).catch(()=>{});
         }
         vidEl.removeEventListener('canplay', onCanPlay);
@@ -477,10 +497,11 @@
           alert("ابتدا یک تارگت را اسکن کنید");
           return;
         }
-        if (lang === "3d") {
-          is3DVideoMode = false;
-          await showModelIfExists(targetIndex);
-        } else if (lang === '3dv') {
+        // stop current audio/video immediately to prevent bleed
+        try { sharedVideo.pause(); sharedVideo.muted = true; } catch {}
+        if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
+
+        if (lang === '3dv') {
           await show3DVideoIfExists(targetIndex);
         } else {
           is3DVideoMode = false;
@@ -580,55 +601,7 @@
       }, 5000);
     }
 
-    // Drag rotate component (touch/mouse) around Y axis
-    AFRAME.registerComponent('drag-rotate-y', {
-      schema: { speed: { type: 'number', default: 1 }, pitch: { type: 'number', default: 1 } },
-      init: function () {
-        this.isDragging = false;
-        this.prevX = 0;
-        this.prevY = 0;
-        const onDown = (e) => {
-          this.isDragging = true;
-          const t = (e.touches && e.touches[0]) || e;
-          this.prevX = t.clientX || 0;
-          this.prevY = t.clientY || 0;
-        };
-        const onMove = (e) => {
-          if (!this.isDragging) return;
-          const t = (e.touches && e.touches[0]) || e;
-          const x = t.clientX || 0;
-          const y = t.clientY || 0;
-          const dx = x - this.prevX;
-          const dy = y - this.prevY;
-          const rot = this.el.getAttribute('rotation') || { x: 0, y: 0, z: 0 };
-          rot.y -= dx * this.data.speed * 0.2;
-          rot.x -= dy * this.data.pitch * 0.2;
-          // clamp pitch to avoid flipping
-          if (rot.x > 80) rot.x = 80;
-          if (rot.x < -80) rot.x = -80;
-          this.el.setAttribute('rotation', `${rot.x} ${rot.y} ${rot.z}`);
-          this.prevX = x;
-          this.prevY = y;
-        };
-        const onUp = () => { this.isDragging = false; };
-        window.addEventListener('touchstart', onDown, { passive: true });
-        window.addEventListener('touchmove', onMove, { passive: true });
-        window.addEventListener('touchend', onUp, { passive: true });
-        window.addEventListener('mousedown', onDown);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        this.removeHandlers = () => {
-          window.removeEventListener('touchstart', onDown);
-          window.removeEventListener('touchmove', onMove);
-          window.removeEventListener('touchend', onUp);
-          window.removeEventListener('mousedown', onDown);
-          window.removeEventListener('mousemove', onMove);
-          window.removeEventListener('mouseup', onUp);
-        };
-      },
-      remove: function () { if (this.removeHandlers) this.removeHandlers(); }
-    });
-
+    
     function handleTargetLost() {
       playToken++;
       const curVid = getCurrentVideo();
@@ -671,7 +644,7 @@
       scanningOverlay.style.display = "none";
       await showTargetContent(targetIndex, currentLang);
       updateLinkButtons(targetIndex);
-      musicButton.style.display = "block";
+
     }
 
     // Play button handler for first user gesture autoplay restrictions
@@ -695,14 +668,9 @@
       const existing = document.querySelector(`#model${index}`);
       if (existing) existing.remove();
 
-      // only .glb per request
-      const candidates = [
-        `model${index+1}.glb`,
-        `models/model${index+1}.glb`
-      ];
-      let url = null;
-      for (const c of candidates) { if (await fileExists(c)) { url = c; break; } }
-      if (!url) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
+      // exact naming: model{index}.glb in current directory
+      const url = `model${index+1}.glb`;
+      if (!(await fileExists(url))) { noVideoMsg.textContent = "No 3D model found"; noVideoMsg.style.display = "block"; return; }
 
       const modelEl = document.createElement('a-entity');
       modelEl.setAttribute('id', `model${index}`);
@@ -710,7 +678,7 @@
       modelEl.setAttribute('position', '0 0 0');
       modelEl.setAttribute('scale', '0.01 0.01 0.01');
       modelEl.setAttribute('rotation', '0 0 0');
-      modelEl.setAttribute('drag-rotate-y', 'speed: 1');
+      modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
       modelEl.classList.add('raycastable');
       parent.appendChild(modelEl);
       currentModel = modelEl;
@@ -719,11 +687,40 @@
     async function show3DVideoIfExists(index) {
       const parent = document.querySelector(`#target${index}`);
       if (!parent) return;
-      // remove old
-      if (currentVideoPlane) currentVideoPlane.setAttribute('visible','false');
+      // Stop any current normal video audio immediately
+      try { sharedVideo.pause(); sharedVideo.muted = true; sharedVideo.currentTime = 0; } catch {}
+      if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {} }
+      // Hide/remove any video plane so 3D doesn't overlay
+      removeVideoPlaneFor(index);
       if (currentModel) { currentModel.remove(); currentModel = null; }
       if (currentVideoSphere) { currentVideoSphere.remove(); currentVideoSphere = null; }
 
+      // exact naming: model{index}.glb in current directory
+      const url = `model${index + 1}.glb`;
+      if (await fileExists(url)) {
+        const modelEl = document.createElement('a-entity');
+        modelEl.setAttribute('id', `model${index}`);
+        modelEl.setAttribute('gltf-model', url);
+        modelEl.setAttribute('position', '0 0 0');
+        modelEl.setAttribute('scale', '0.01 0.01 0.01');
+        modelEl.setAttribute('rotation', '0 0 0');
+        modelEl.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
+        modelEl.classList.add('raycastable');
+        parent.appendChild(modelEl);
+        currentModel = modelEl;
+        is3DVideoMode = true;
+        // start music automatically for 3D content
+        try {
+          audio.src = `audio${index + 1}-3dv.mp3`;
+          await audio.play();
+        } catch {
+          try { audio.src = `audio${index + 1}.mp3`; await audio.play(); } catch {}
+        }
+        musicButton.style.display = 'none';
+        return;
+      }
+
+      // Else, fall back to 360 video files
       const exts = orderExtensionsBySupport();
       let foundUrl = null;
       for (let ext of exts) {
@@ -731,11 +728,12 @@
         if (await fileExists(path)) { foundUrl = path; break; }
       }
       if (!foundUrl) {
-        noVideoMsg.textContent = '3D Video not found';
+        noVideoMsg.textContent = '3D content not found';
         noVideoMsg.style.display = 'block';
         return;
       }
-      await setVideoSrc(foundUrl, index);
+      // set new source muted first
+      await setVideoSrc(foundUrl, index, { forceMute: true });
 
       const sphere = document.createElement('a-entity');
       sphere.setAttribute('id', `videoSphere${index}`);
@@ -744,7 +742,7 @@
       sphere.setAttribute('material', 'shader: flat; src: #sharedVideo; side: double');
       sphere.setAttribute('rotation', '0 0 0');
       sphere.setAttribute('position', '0 0 0');
-      sphere.setAttribute('drag-rotate-y', 'speed: 1');
+      sphere.setAttribute('drag-rotate-y', 'speed: 1; pitch: 1');
       parent.appendChild(sphere);
       currentVideoSphere = sphere;
       is3DVideoMode = true;
@@ -754,6 +752,7 @@
         audio.src = `audio${index + 1}-3dv.mp3`;
         await audio.play();
         isAudioPlaying = true;
+        musicButton.style.display = 'none';
       } catch {}
     }
 
@@ -761,6 +760,33 @@
       try {
         return videoEl.mozHasAudio || Boolean(videoEl.webkitAudioDecodedByteCount) || (videoEl.audioTracks && videoEl.audioTracks.length);
       } catch { return false; }
+    }
+
+    function maybeAutoPlayMusicFor(index) {
+      // Always auto-play for 3D video; for normal videos only if they are silent
+      try {
+        if (is3DVideoMode) {
+          audio.src = `audio${index + 1}-3dv.mp3`;
+          audio.play().catch(()=>{});
+          isAudioPlaying = true;
+          musicButton.style.display = 'none';
+        } else if (!hasAudioTrack(sharedVideo)) {
+          audio.src = `audio${index + 1}.mp3`;
+          audio.play().catch(()=>{});
+          isAudioPlaying = true;
+          musicButton.style.display = 'none';
+        } else {
+          musicButton.style.display = 'none';
+        }
+      } catch {}
+    }
+
+    function removeVideoPlaneFor(index) {
+      const videoPlane = document.querySelector(`#videoPlane${index}`);
+      if (videoPlane) {
+        videoPlane.remove();
+        currentVideoPlane = null;
+      }
     }
 
     window.addEventListener('load', async () => {
@@ -794,6 +820,8 @@
       if (video3dButtons.length > 1) {
         video3dButtons.forEach((btn, idx) => { if (idx > 0) btn.remove(); });
       }
+      // Always hide music button (auto-music handles itself)
+      musicButton.style.display = 'none';
     });
   </script>
 </body>
