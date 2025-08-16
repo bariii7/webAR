@@ -191,6 +191,26 @@
       transform: translateY(-50%);
       z-index: 10;
     }
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      z-index: 2000;
+      display: none;
+      font-size: 14px;
+      pointer-events: none;
+    }
+    #toast.show {
+      display: block;
+      animation: fadein 150ms ease-out, fadeout 200ms ease-in 2.1s forwards;
+    }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeout { to { opacity: 0; } }
   </style>
 </head>
 <body>
@@ -233,6 +253,7 @@
   <button class="icon-button" id="musicButton" style="display: none;">
     <img src="/icons/music.png" alt="Music">
   </button>
+  <div id="toast"></div>
   <a-scene
     mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: #scanning-overlay;"
     embedded
@@ -309,6 +330,19 @@
     const dynamicTargetImg = document.getElementById("dynamicTargetImg");
     const audio = document.querySelector("#audio");
     const noVideoMsg = document.getElementById("noVideoMsg");
+
+    function showToast(message, duration = 2200) {
+      const t = document.getElementById('toast');
+      if (!t) return;
+      t.textContent = message;
+      t.classList.remove('show');
+      void t.offsetWidth;
+      t.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => {
+        t.classList.remove('show');
+      }, duration + 250);
+    }
 
     // ایجاد ویدیوهای per target
     for (let i = 0; i < MAX_TARGETS; i++) {
@@ -442,7 +476,7 @@
         found = true;
         noVideoMsg.style.display = "none";
         // فقط بار اول دکمه Play بیاد
-        if (!firstVideoPlayed) {
+        if (!hasPlayedOnce) {
           playButton.style.display = "block";
         } else {
           playButton.style.display = "none";
@@ -457,7 +491,8 @@
 
     musicButton.addEventListener("click", () => {
       if (targetIndex === null) {
-        alert("Scan a target please");
+        langMenu.style.display = "none";
+        showToast("ابتدا باید یک تارگت را اسکن کنید", 2000);
         return;
       }
       if (!isAudioPlaying) {
@@ -469,6 +504,17 @@
         audio.currentTime = 0;
         isAudioPlaying = false;
       }
+    });
+
+    playButton.addEventListener("click", async () => {
+      if (targetIndex === null) return;
+      const curVid = getCurrentVideo();
+      if (!curVid) return;
+      try { await curVid.play(); } catch {}
+      if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
+      curVid.muted = false;
+      hasPlayedOnce = true;
+      playButton.style.display = "none";
     });
 
     langButton.addEventListener("click", () => {
@@ -484,7 +530,8 @@
       btn.addEventListener("click", async () => {
         const lang = btn.getAttribute("data-lang");
         if (targetIndex === null) {
-          alert("ابتدا یک تارگت را اسکن کنید");
+          langMenu.style.display = "none";
+          showToast("ابتدا باید یک تارگت را اسکن کنید", 2000);
           return;
         }
         if (lang === "3d") {
@@ -581,7 +628,7 @@
         const res = await fetch(`target.mind`, { method: "HEAD" });
         if (!res.ok) throw new Error("Target.mind couldn't find");
       } catch (err) {
-        alert(`The target file (target.mind) could not be found. Please make sure the file is in the correct path.`);
+        showToast("Target.mind پیدا نشد. مسیر فایل را بررسی کنید.", 3000);
         scanningOverlay.classList.add("hidden");
       }
     }
