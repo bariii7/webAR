@@ -416,6 +416,11 @@
     async function showTargetContent(index, lang) {
       const entity = document.querySelector(`#target${index}`);
       let found = false;
+      // اگر قبلاً مدل 3D اضافه شده، هنگام نمایش ویدیو پاک شود
+      try {
+        const existingModel = document.querySelector(`#model${index}`);
+        if (existingModel) existingModel.remove();
+      } catch {}
       for (let ext of VIDEO_EXTS) {
         const path = `video${index + 1}-${lang}${ext}`;
         if (await fileExists(path)) {
@@ -469,6 +474,38 @@
         playButton.style.display = "none";
         showToast("this language has no video");
       }
+    }
+
+    // نمایش مدل سه‌بعدی در صورت وجود
+    async function showModelIfExists(index) {
+      try {
+        // ویدیو را مخفی و صدا را متوقف کن
+        if (currentVideoPlane) currentVideoPlane.setAttribute('visible', 'false');
+        const curVid = getCurrentVideo();
+        if (curVid) { try { curVid.pause(); } catch {}; }
+        if (audio) { try { audio.pause(); audio.currentTime = 0; } catch {}; }
+        soundToggleBtn.style.display = 'none';
+        playButton.style.display = 'none';
+
+        const parent = document.querySelector(`#target${index}`);
+        if (!parent) return;
+        const existing = document.querySelector(`#model${index}`);
+        if (existing) existing.remove();
+
+        const assetId = `model${index + 1}`;
+        const asset = document.querySelector(`a-asset-item#${assetId}`);
+        if (!asset) { showToast('No 3D model found'); return; }
+
+        const modelEl = document.createElement('a-entity');
+        modelEl.setAttribute('id', `model${index}`);
+        modelEl.setAttribute('gltf-model', `#${assetId}`);
+        modelEl.setAttribute('position', '0 0 0');
+        modelEl.setAttribute('scale', '0.01 0.01 0.01');
+        modelEl.setAttribute('rotation', '0 0 0');
+        modelEl.setAttribute('touch-rotate', 'speed: 1');
+        parent.appendChild(modelEl);
+        currentModel = modelEl;
+      } catch {}
     }
 
     async function setVideoSrc(path, idx) {
@@ -527,8 +564,13 @@
           showToast("First scan a target");
           return;
         }
-        currentLang = lang;
-        await showTargetContent(targetIndex, lang);
+        if (lang === '3d') {
+          currentLang = '3d';
+          await showModelIfExists(targetIndex);
+        } else {
+          currentLang = lang;
+          await showTargetContent(targetIndex, lang);
+        }
         langMenu.style.display = "none";
         updateLinkButtons(targetIndex);
       });
@@ -598,7 +640,11 @@
       dynamicTargetImg.style.display = "block";
       dynamicTargetImg.src = `image${targetIndex + 1}.jpg`;
       scanningOverlay.classList.add("hidden");
-      await showTargetContent(targetIndex, currentLang);
+      if (currentLang === '3d') {
+        await showModelIfExists(targetIndex);
+      } else {
+        await showTargetContent(targetIndex, currentLang);
+      }
       updateLinkButtons(targetIndex);
     });
 
