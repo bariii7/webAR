@@ -191,6 +191,47 @@
       transform: translateY(-50%);
       z-index: 10;
     }
+
+    #soundToggle {
+      position: absolute;
+      right: 20px;
+      bottom: 90px;
+      z-index: 11;
+      display: none;
+    }
+
+    #startButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.3);
+      cursor: pointer;
+    }
+
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      z-index: 2000;
+      font-size: 14px;
+      display: none;
+      max-width: 80vw;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -233,6 +274,11 @@
   <button class="icon-button" id="musicButton" style="display: none;">
     <img src="/icons/music.png" alt="Music">
   </button>
+  <button class="icon-button" id="soundToggle" style="display: none;">
+    <img src="/icons/sound.png" alt="Sound Toggle">
+  </button>
+  <button id="startButton">Start AR</button>
+  <div id="toast"></div>
   <a-scene
     mindar-image="imageTargetSrc: target.mind; filterMinCF: 0.1; filterBeta: 10; warmupTolerance: 45; maxTrack: 10; uiScanning: #scanning-overlay;"
     embedded
@@ -309,6 +355,12 @@
     const dynamicTargetImg = document.getElementById("dynamicTargetImg");
     const audio = document.querySelector("#audio");
     const noVideoMsg = document.getElementById("noVideoMsg");
+    const soundToggleBtn = document.getElementById("soundToggle");
+    const startButton = document.getElementById("startButton");
+    const toastEl = document.getElementById("toast");
+
+    let userGestureUnlocked = false;
+    let canAutoplayWithSound = false;
 
     // ایجاد ویدیوهای per target
     for (let i = 0; i < MAX_TARGETS; i++) {
@@ -352,6 +404,15 @@
       catch { return false; }
     }
 
+    function showToast(message, duration = 2000) {
+      try {
+        toastEl.textContent = message;
+        toastEl.style.display = 'block';
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => { toastEl.style.display = 'none'; }, duration);
+      } catch {}
+    }
+
     async function showTargetContent(index, lang) {
       const entity = document.querySelector(`#target${index}`);
       let found = false;
@@ -376,15 +437,23 @@
           video.addEventListener("loadedmetadata", () => updatePlaneSize(video, index));
           found = true;
           noVideoMsg.style.display = "none";
-          if (!hasPlayedOnce) {
-            playButton.style.display = "block";
-          } else {
-            playButton.style.display = "none";
-            setTimeout(() => {
-              video.muted = false;
-              video.play().then(() => { currentVideoPlane.setAttribute("visible", "true"); });
-            }, 150);
-          }
+          // Autoplay strategy:
+          // If we unlocked via the Start button, try to play with sound; otherwise play muted with sound toggle visible
+          const wantSound = !!canAutoplayWithSound;
+          try { video.muted = !wantSound; } catch {}
+          video.play().then(() => {
+            if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
+            soundToggleBtn.style.display = 'block';
+            playButton.style.display = 'none';
+          }).catch(() => {
+            // If playback failed, fall back to muted
+            try { video.muted = true; } catch {}
+            video.play().then(() => {
+              if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
+              soundToggleBtn.style.display = 'block';
+              playButton.style.display = 'none';
+            }).catch(()=>{});
+          });
           break;
         }
       }
@@ -396,9 +465,9 @@
           curVid.load();
         }
         if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "false");
-        noVideoMsg.textContent = "No video available in this language.";
-        noVideoMsg.style.display = "block";
+        soundToggleBtn.style.display = 'none';
         playButton.style.display = "none";
+        showToast("this language has no video");
       }
     }
 
@@ -408,56 +477,27 @@
       try { vidEl.pause(); } catch {}
       vidEl.src = path;
       vidEl.load();
-      if (targetIndex === idx && hasPlayedOnce) {
-        vidEl.muted = false;
-        vidEl.play().then(() => {
-          if (currentVideoPlane) currentVideoPlane.setAttribute("visible", "true");
-          playButton.style.display = "none";
-        });
-      }
+      // playback happens in showTargetContent to centralize logic
     }
 
-
-    const entity = document.querySelector(`#target${index}`);
-    let found = false;
-    for (let ext of VIDEO_EXTS) {
-      const path = `video${index + 1}-${lang}${ext}`;
-      if (await fileExists(path)) {
-        await setVideoSrc(path, index);
-        if (!document.querySelector(`#videoPlane${index}`)) {
-          currentVideoPlane = document.createElement("a-video");
-          currentVideoPlane.setAttribute("id", `videoPlane${index}`);
-          currentVideoPlane.setAttribute("src", `#myVideo${index}`);
-          currentVideoPlane.setAttribute("position", "0 0 0");
-          currentVideoPlane.setAttribute("rotation", "0 0 0");
-          currentVideoPlane.setAttribute("visible", "false");
-          currentVideoPlane.setAttribute("material", "side: double");
-          entity.appendChild(currentVideoPlane);
-        } else {
-          currentVideoPlane = document.querySelector(`#videoPlane${index}`);
-          currentVideoPlane.setAttribute("visible", "false");
+    // Sound toggle handler
+    soundToggleBtn.addEventListener('click', async () => {
+      const curVid = getCurrentVideo();
+      if (!curVid) { showToast('First scan a target'); return; }
+      try {
+        curVid.muted = !curVid.muted;
+        if (!curVid.muted) {
+          canAutoplayWithSound = true;
+          try { await curVid.play(); } catch {}
         }
-        video = getVideoElement(index);
-        video.addEventListener("loadedmetadata", ()=>updatePlaneSize(video,index));
-        found = true;
-        noVideoMsg.style.display = "none";
-        // فقط بار اول دکمه Play بیاد
-        if (!firstVideoPlayed) {
-          playButton.style.display = "block";
-        } else {
-          playButton.style.display = "none";
-          setTimeout(()=>{
-            video.muted = false;
-            video.play().then(()=>{ currentVideoPlane.setAttribute("visible","true"); });
-          }, 150);
-        }
-        break;
-      }
-    }
+      } catch {}
+      soundToggleBtn.style.display = 'block';
+    });
+    
 
     musicButton.addEventListener("click", () => {
       if (targetIndex === null) {
-        alert("Scan a target please");
+        showToast("First scan a target");
         return;
       }
       if (!isAudioPlaying) {
@@ -484,15 +524,11 @@
       btn.addEventListener("click", async () => {
         const lang = btn.getAttribute("data-lang");
         if (targetIndex === null) {
-          alert("ابتدا یک تارگت را اسکن کنید");
+          showToast("First scan a target");
           return;
         }
-        if (lang === "3d") {
-          await showModelIfExists(targetIndex);
-        } else {
-          currentLang = lang;
-          await showTargetContent(targetIndex, lang);
-        }
+        currentLang = lang;
+        await showTargetContent(targetIndex, lang);
         langMenu.style.display = "none";
         updateLinkButtons(targetIndex);
       });
@@ -541,6 +577,7 @@
       musicButton.style.display = "none";
       playButton.style.display = "none";
       noVideoMsg.style.display = "none";
+      soundToggleBtn.style.display = 'none';
       scanningOverlay.classList.remove("hidden");
       hasPlayedOnce = false;
       video = null;
@@ -581,30 +618,46 @@
         const res = await fetch(`target.mind`, { method: "HEAD" });
         if (!res.ok) throw new Error("Target.mind couldn't find");
       } catch (err) {
-        alert(`The target file (target.mind) could not be found. Please make sure the file is in the correct path.`);
+        showToast('The target file (target.mind) could not be found.');
         scanningOverlay.classList.add("hidden");
       }
     }
 
-    async function requestCameraPermission() {
+    async function startMindAR() {
       try {
-        let cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        cameraStream.getTracks().forEach(t => t.stop());
-        return true;
-      } catch { scanningOverlay.classList.add("hidden"); return false; }
+        const scene = document.querySelector('a-scene');
+        const mindarSystem = scene?.systems?.['mindar-image-system'];
+        if (mindarSystem && typeof mindarSystem.start === 'function') {
+          await mindarSystem.start();
+        }
+      } catch {}
     }
 
-    async function startMindAR() { return true; }
-    async function requestCameraAndMotionPermission() {
-      const cameraGranted = await requestCameraPermission();
-      if (!cameraGranted) return;
+    startButton.addEventListener('click', async () => {
+      // Request camera + microphone in a single user gesture
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        userGestureUnlocked = true;
+        canAutoplayWithSound = true;
+      } catch (e) {
+        // Fallback to camera-only or muted autoplay
+        try {
+          const streamCam = await navigator.mediaDevices.getUserMedia({ video: true });
+          streamCam.getTracks().forEach(t => t.stop());
+        } catch {}
+        userGestureUnlocked = true;
+        canAutoplayWithSound = false;
+      }
+      startButton.style.display = 'none';
       await startMindAR();
-    }
+    });
 
     window.addEventListener('load', async () => {
       await checkTargetFile();
       await loadLinks();
-      await requestCameraAndMotionPermission();
+      // Show start button to request permissions in one gesture
+      startButton.style.display = 'flex';
     });
   </script>
 </body>
